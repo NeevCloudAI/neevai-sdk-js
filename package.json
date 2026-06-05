@@ -1,0 +1,65 @@
+{
+  "name": "@neevai/sdk",
+  "version": "0.1.0",
+  "description": "Official NeevCloud SDK for the NeevAI platform — Node, Bun, Deno & edge. First up: agent sandboxes.",
+  "license": "Apache-2.0",
+  "author": "NeevCloud",
+  "homepage": "https://github.com/NeevCloudAI/neevai-sdk-js#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NeevCloudAI/neevai-sdk-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NeevCloudAI/neevai-sdk-js/issues"
+  },
+  "keywords": ["neevai", "neevcloud", "sdk", "agent", "sandbox", "ai", "gpu", "gvisor"],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+  },
+  "scripts": {
+    "gen": "openapi-typescript specs/openapi.yaml -o src/generated/types.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "pnpm build && changeset publish",
+    "prepublishOnly": "pnpm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@changesets/cli": "^2.27.10",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "openapi-typescript": "^7.4.4",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
