@@ -1,4 +1,4 @@
-import type { FetchLike } from "../src/transport.js";
+import type { FetchLike } from "../src/http.js";
 import type { SandboxData } from "../src/types.js";
 
 // A single recorded fetch call, for asserting method/url/headers/body in tests.
@@ -31,17 +31,21 @@ export function json(
   });
 }
 
-// Creates a fetch that returns the queued responses in order, recording every
-// call. A queued entry may be an Error to simulate a transport-level failure.
+// Creates a base fetch that returns the queued responses in order, recording
+// every call. The dispatch layer and openapi-fetch both call fetch with a
+// Request, so the recorder reads method/url/headers/body off the Request. A
+// queued Error simulates a transport-level failure.
 export function mockFetch(queue: Array<Response | Error>): MockFetch {
   const calls: RecordedCall[] = [];
   const pending = [...queue];
-  const fetch: FetchLike = async (url, init) => {
+  const fetch: FetchLike = async (input, init) => {
+    const req = input instanceof Request ? input : new Request(String(input), init);
+    const text = await req.clone().text();
     calls.push({
-      url,
-      method: init?.method ?? "GET",
-      headers: new Headers(init?.headers),
-      body: init?.body ? JSON.parse(init.body as string) : undefined,
+      url: req.url,
+      method: req.method,
+      headers: req.headers,
+      body: text.length > 0 ? JSON.parse(text) : undefined,
     });
     const next = pending.shift();
     if (!next) throw new Error("mockFetch: no more queued responses");

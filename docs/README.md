@@ -13,6 +13,14 @@ with the [project README](../README.md):
 
 ## API surface
 
-The SDK is generated-types + a hand-written ergonomic client. The vendored
-OpenAPI source of truth is [`specs/openapi.yaml`](../specs/openapi.yaml); run
-`pnpm gen` to regenerate `src/generated/types.ts` after updating it.
+The SDK uses a **hybrid** model:
+
+- **Spec-backed** resources are built from a vendored OpenAPI spec
+  (`specs/<service>.yaml`) — `pnpm gen` produces `src/generated/<service>.ts`,
+  and a hand-written wrapper calls a typed `openapi-fetch` client.
+- **Spec-less** endpoints use `ctx.raw.request<T>()` with hand-written types,
+  over the same transport.
+
+Specs are migrated from the backend services into `specs/` one at a time. See
+[CONTRIBUTING → Architecture](../CONTRIBUTING.md#architecture-hybrid-autogen--hand-written-wrapper)
+for the full workflow.

@@ -38,7 +38,7 @@
     "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
   },
   "scripts": {
-    "gen": "openapi-typescript specs/openapi.yaml -o src/generated/types.ts",
+    "gen": "node scripts/gen-types.mjs",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -61,5 +61,8 @@
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
   }
 }

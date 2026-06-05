@@ -118,6 +118,19 @@ try {
 
 Transient failures (network errors, `429`, `5xx`) are retried automatically with exponential backoff (configurable via `maxRetries`).
 
+### Advanced: untyped requests
+
+Most resources are typed against an OpenAPI spec. For endpoints that don't have a published spec yet, `neev.raw` issues requests over the same transport (auth, retries, timeout, typed errors), with caller-supplied types:
+
+```ts
+const widget = await neev.raw.request<{ id: string }>({
+  method: "GET",
+  path: "/api/v1beta1/orgs/acme/projects/web/widgets/123",
+});
+```
+
+These graduate to fully-typed resource methods as specs land in the SDK.
+
 ## Documentation
 
 Full platform documentation: <https://docs.neevcloud.com>.

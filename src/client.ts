@@ -1,6 +1,7 @@
+import createClient, { type Client } from "openapi-fetch";
 import { NeevAIError } from "./errors.js";
+import { type Dispatch, type FetchLike, RawClient, createDispatch } from "./http.js";
 import { Sandboxes } from "./resources/sandboxes.js";
-import { type FetchLike, Transport } from "./transport.js";
 
 // Per-call override of the org/project the request targets. When omitted, the
 // client-level defaults (constructor args or NEEVCLOUD_* env vars) are used.
@@ -28,10 +29,15 @@ export interface NeevAIOptions {
   fetch?: FetchLike;
 }
 
-// Internal contract the resource classes depend on, so they need only the
-// transport and scope resolution rather than the whole client surface.
+// Internal contract the resource classes depend on. Provides both a typed,
+// spec-driven client (createTypedClient) and an untyped escape hatch (raw) for
+// endpoints that do not have an OpenAPI spec yet — both share one transport.
 export interface RequestContext {
-  readonly transport: Transport;
+  // Builds an openapi-fetch client for a service's generated `paths` type.
+  createTypedClient<Paths extends {}>(): Client<Paths>;
+  // Untyped client for spec-less endpoints.
+  readonly raw: RawClient;
+  // Resolves the effective org/project for a call.
   resolveScope(scope?: Scope): { orgId: string; projectId: string };
 }
 
@@ -45,11 +51,14 @@ const DEFAULT_MAX_RETRIES = 2;
 // The NeevAI platform client. Construct once and reuse; resource namespaces such
 // as `sandboxes` hang off the instance.
 export class NeevAI implements RequestContext {
-  // HTTP transport shared by all resources on this client.
-  readonly transport: Transport;
+  // Untyped client for endpoints that do not have an OpenAPI spec yet.
+  readonly raw: RawClient;
   // Sandbox lifecycle operations.
   readonly sandboxes: Sandboxes;
 
+  private readonly baseUrl: string;
+  private readonly apiKey: string;
+  private readonly dispatch: Dispatch;
   private readonly defaultOrgId?: string;
   private readonly defaultProjectId?: string;
 
@@ -61,25 +70,35 @@ export class NeevAI implements RequestContext {
       );
     }
 
-    const fetchImpl = options.fetch ?? globalThis.fetch;
-    if (!fetchImpl) {
+    const baseFetch = options.fetch ?? globalThis.fetch;
+    if (!baseFetch) {
       throw new NeevAIError(
         "No global fetch found. Use Node 18+, Bun, Deno, or pass a `fetch` implementation.",
       );
     }
 
+    this.apiKey = apiKey;
+    this.baseUrl = options.baseURL ?? readEnv("NEEVCLOUD_BASE_URL") ?? DEFAULT_BASE_URL;
     this.defaultOrgId = options.orgId ?? readEnv("NEEVCLOUD_ORG_ID");
     this.defaultProjectId = options.projectId ?? readEnv("NEEVCLOUD_PROJECT_ID");
-
-    this.transport = new Transport({
-      baseURL: options.baseURL ?? readEnv("NEEVCLOUD_BASE_URL") ?? DEFAULT_BASE_URL,
-      apiKey,
+    this.dispatch = createDispatch({
+      fetch: baseFetch.bind(globalThis),
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
-      fetch: fetchImpl.bind(globalThis),
     });
 
+    this.raw = new RawClient({ baseUrl: this.baseUrl, apiKey, dispatch: this.dispatch });
     this.sandboxes = new Sandboxes(this);
+  }
+
+  // Builds a typed openapi-fetch client for a service's generated `paths` type,
+  // backed by this client's shared transport and bearer auth.
+  createTypedClient<Paths extends {}>(): Client<Paths> {
+    return createClient<Paths>({
+      baseUrl: this.baseUrl,
+      fetch: this.dispatch,
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
   }
 
   // Resolves the effective org/project for a call, preferring the per-call

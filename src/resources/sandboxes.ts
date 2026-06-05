@@ -1,4 +1,7 @@
+import type { Client } from "openapi-fetch";
 import type { RequestContext, Scope } from "../client.js";
+import type { paths } from "../generated/aiagent.js";
+import { ensureOk, unwrap } from "../http.js";
 import { Sandbox } from "../sandbox.js";
 import type {
   CreateSandboxParams,
@@ -6,6 +9,14 @@ import type {
   SandboxListResponse,
   SandboxMetricsResponse,
 } from "../types.js";
+
+// Spec path templates for the aiagent sandbox endpoints. openapi-fetch type-checks
+// each call against these literal paths and the generated `paths` type.
+const COLLECTION = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes";
+const ITEM = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}";
+const PAUSE = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/pause";
+const RESUME = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/resume";
+const METRICS = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/metrics";
 
 // Parameters for listing sandboxes: pagination plus an optional scope override.
 export interface ListSandboxesParams extends Scope {
@@ -37,97 +48,86 @@ export interface MetricsParams extends Scope {
 // actions on the result.
 export class Sandboxes {
   private readonly ctx: RequestContext;
+  private readonly api: Client<paths>;
 
   constructor(ctx: RequestContext) {
     this.ctx = ctx;
+    this.api = ctx.createTypedClient<paths>();
   }
 
   // Creates a sandbox in the resolved org/project. The returned handle may still
   // be in the Pending phase — call `waitUntilReady` to block until it is Ready.
   async create(params: CreateSandboxParams, scope?: Scope): Promise<Sandbox> {
-    const resolved = this.ctx.resolveScope(scope);
-    const data = await this.ctx.transport.request<SandboxData>({
-      method: "POST",
-      path: collectionPath(resolved),
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.POST(COLLECTION, {
+      params: { path: { org_id: orgId, project_id: projectId } },
       body: params,
     });
-    return new Sandbox(this.ctx, this, data, scope);
+    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
   }
 
   // Lists sandboxes in the resolved org/project, returning wrapped handles.
   async list(params: ListSandboxesParams = {}): Promise<SandboxPage> {
     const { page, limit, ...scope } = params;
-    const resolved = this.ctx.resolveScope(scope);
-    const res = await this.ctx.transport.request<SandboxListResponse>({
-      method: "GET",
-      path: collectionPath(resolved),
-      query: { page, limit },
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.GET(COLLECTION, {
+      params: { path: { org_id: orgId, project_id: projectId }, query: { page, limit } },
     });
+    const data = unwrap<SandboxListResponse>(res);
     return {
-      items: res.items.map((data) => new Sandbox(this.ctx, this, data, scope)),
-      total: res.total,
-      page: res.page,
-      limit: res.limit,
+      items: data.items.map((item) => new Sandbox(this.ctx, this, item, scope)),
+      total: data.total,
+      page: data.page,
+      limit: data.limit,
     };
   }
 
   // Fetches a single sandbox by id.
   async get(id: string, scope?: Scope): Promise<Sandbox> {
-    const resolved = this.ctx.resolveScope(scope);
-    const data = await this.ctx.transport.request<SandboxData>({
-      method: "GET",
-      path: itemPath(resolved, id),
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.GET(ITEM, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
-    return new Sandbox(this.ctx, this, data, scope);
+    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
   }
 
   // Pauses a sandbox (scales it to zero replicas) and returns the updated handle.
   async pause(id: string, scope?: Scope): Promise<Sandbox> {
-    const resolved = this.ctx.resolveScope(scope);
-    const data = await this.ctx.transport.request<SandboxData>({
-      method: "POST",
-      path: `${itemPath(resolved, id)}/pause`,
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.POST(PAUSE, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
-    return new Sandbox(this.ctx, this, data, scope);
+    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
   }
 
   // Resumes a paused sandbox (scales it to one replica) and returns the updated handle.
   async resume(id: string, scope?: Scope): Promise<Sandbox> {
-    const resolved = this.ctx.resolveScope(scope);
-    const data = await this.ctx.transport.request<SandboxData>({
-      method: "POST",
-      path: `${itemPath(resolved, id)}/resume`,
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.POST(RESUME, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
-    return new Sandbox(this.ctx, this, data, scope);
+    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
   }
 
   // Permanently deletes a sandbox, removing the Kubernetes CR and the DB row.
   async delete(id: string, scope?: Scope): Promise<void> {
-    const resolved = this.ctx.resolveScope(scope);
-    await this.ctx.transport.request<void>({
-      method: "DELETE",
-      path: itemPath(resolved, id),
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.DELETE(ITEM, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
+    ensureOk(res);
   }
 
   // Reads the live, tenant-scoped metric series for a sandbox.
   async metrics(id: string, params: MetricsParams = {}): Promise<SandboxMetricsResponse> {
     const { from, to, step, ...scope } = params;
-    const resolved = this.ctx.resolveScope(scope);
-    return this.ctx.transport.request<SandboxMetricsResponse>({
-      method: "GET",
-      path: `${itemPath(resolved, id)}/metrics`,
-      query: { from, to, step },
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.GET(METRICS, {
+      params: {
+        path: { org_id: orgId, project_id: projectId, sandbox_id: id },
+        query: { from, to, step },
+      },
     });
+    return unwrap<SandboxMetricsResponse>(res);
   }
-}
-
-// Builds the collection path for an org/project's sandboxes.
-function collectionPath(scope: { orgId: string; projectId: string }): string {
-  return `/api/v1beta1/orgs/${encodeURIComponent(scope.orgId)}/projects/${encodeURIComponent(scope.projectId)}/sandboxes`;
-}
-
-// Builds the path for a single sandbox by id.
-function itemPath(scope: { orgId: string; projectId: string }, id: string): string {
-  return `${collectionPath(scope)}/${encodeURIComponent(id)}`;
 }
