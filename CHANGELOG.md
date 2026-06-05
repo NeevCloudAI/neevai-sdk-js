@@ -14,8 +14,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Typed error hierarchy (`NeevAIError` and HTTP-status subclasses).
 - HTTP transport with timeout and exponential-backoff retries on network errors, `429`, and `5xx`.
 - Generated TypeScript types from the AI Agent Service OpenAPI spec.
-- Sandbox data-plane: `sandbox.files.write()` writes files to a running sandbox
-  via its sandboxd daemon (reached at `connect_url`, no-retry transport).
+- Sandbox files: `sandbox.files.write()` writes files to a running sandbox via
+  its sandboxd daemon (reached at `connect_url`; not retried).
 
 ### Changed
 

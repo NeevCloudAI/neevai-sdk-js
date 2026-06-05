@@ -24,7 +24,7 @@ export class Sandbox {
   private readonly sandboxes: Sandboxes;
   private readonly scope?: Scope;
   private state: SandboxData;
-  private connection?: SandboxConnection;
+  private conn?: SandboxConnection;
 
   constructor(sandboxes: Sandboxes, data: SandboxData, scope?: Scope) {
     this.sandboxes = sandboxes;
@@ -52,15 +52,15 @@ export class Sandbox {
     return this.state.replicas;
   }
 
-  // Data-plane address the SDK reaches directly, or null when not configured.
+  // Direct address of the sandbox daemon, or null when not configured.
   get connectUrl(): string | null {
     return this.state.connect_url ?? null;
   }
 
-  // Filesystem operations on this sandbox's data-plane daemon. Throws if the
-  // sandbox has no connect_url yet (it must be Ready / data-plane configured).
+  // Filesystem operations on this sandbox's daemon. Throws if the sandbox has no
+  // connect_url yet (it must be Ready before file operations).
   get files(): SandboxFiles {
-    return this.dataPlane().files;
+    return this.connection().files;
   }
 
   // Full raw sandbox record exactly as returned by the API.
@@ -104,19 +104,19 @@ export class Sandbox {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
   }
 
-  // Lazily opens (and caches) the data-plane connection for this sandbox. Throws
-  // if connect_url is not yet available.
-  private dataPlane(): SandboxConnection {
-    if (!this.connection) {
+  // Lazily opens (and caches) the daemon connection for this sandbox. Throws if
+  // connect_url is not yet available.
+  private connection(): SandboxConnection {
+    if (!this.conn) {
       const connectUrl = this.state.connect_url;
       if (!connectUrl) {
         throw new NeevAIError(
-          `Sandbox ${this.id} has no connect_url yet; it must be Ready before data-plane access.`,
+          `Sandbox ${this.id} has no connect_url yet; it must be Ready before file or exec operations.`,
         );
       }
-      this.connection = this.sandboxes.connect(connectUrl);
+      this.conn = this.sandboxes.connect(connectUrl);
     }
-    return this.connection;
+    return this.conn;
   }
 
   // Polls until the sandbox reaches the Ready phase, then resolves with this

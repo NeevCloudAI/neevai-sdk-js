@@ -37,10 +37,12 @@ export {
   AuthenticationError,
   BadRequestError,
   ConflictError,
+  DeadlineExceededError,
   InternalServerError,
   NeevAIError,
   NotFoundError,
   PermissionDeniedError,
+  PreconditionFailedError,
   RateLimitError,
 } from "./errors.js";
 export type { ApiErrorBody } from "./errors.js";

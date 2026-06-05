@@ -1,13 +1,13 @@
 import { type APIError, type ApiErrorBody, errorFromStatus } from "./errors.js";
 import type { Dispatch } from "./http.js";
 
-// Inputs needed to open a connection to a sandbox's data-plane daemon.
+// Inputs needed to open a connection to a sandbox's daemon.
 export interface SandboxConnectionOptions {
-  // The sandbox's data-plane base URL (Sandbox.connect_url).
+  // The sandbox's daemon base URL (Sandbox.connect_url).
   connectUrl: string;
   // Bearer API key; the gateway derives x-sandbox-id from the connect_url host.
   apiKey: string;
-  // Shared transport. For the data plane this is the no-retry dispatch.
+  // Shared transport; the no-retry dispatch, since sandbox calls are not idempotent.
   dispatch: Dispatch;
 }
 
@@ -34,9 +34,9 @@ export interface WriteFileResult {
   bytesWritten: number;
 }
 
-// A live connection to one sandbox's data-plane daemon (sandboxd), reached
-// directly at the sandbox's connect_url. Construct via NeevAI.createDataPlaneClient
-// or, more commonly, access it through `sandbox.files` / `sandbox.exec`.
+// A live connection to one sandbox's daemon (sandboxd), reached directly at the
+// sandbox's connect_url. Construct via NeevAI.createSandboxConnection or, more
+// commonly, access it through `sandbox.files` / `sandbox.exec`.
 export class SandboxConnection {
   private readonly base: string;
   private readonly apiKey: string;

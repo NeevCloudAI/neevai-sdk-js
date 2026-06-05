@@ -38,9 +38,9 @@ export interface RequestContext {
   createTypedClient<Paths extends {}>(): Client<Paths>;
   // Untyped client for spec-less endpoints.
   readonly raw: RawClient;
-  // Opens a data-plane connection to a sandbox daemon at its connect_url. Uses a
-  // no-retry transport so non-idempotent data-plane calls never double-fire.
-  createDataPlaneClient(connectUrl: string): SandboxConnection;
+  // Opens a connection to a sandbox daemon at its connect_url. Uses a no-retry
+  // transport so non-idempotent sandbox calls never double-fire.
+  createSandboxConnection(connectUrl: string): SandboxConnection;
   // Resolves the effective org/project for a call.
   resolveScope(scope?: Scope): { orgId: string; projectId: string };
 }
@@ -63,7 +63,7 @@ export class NeevAI implements RequestContext {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly dispatch: Dispatch;
-  private readonly dataDispatch: Dispatch;
+  private readonly directDispatch: Dispatch;
   private readonly defaultOrgId?: string;
   private readonly defaultProjectId?: string;
 
@@ -93,18 +93,22 @@ export class NeevAI implements RequestContext {
       timeoutMs,
       maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
     });
-    // The data plane never retries: exec/write are not idempotent, so a retried
+    // Sandbox calls never retry: exec/write are not idempotent, so a retried
     // 5xx could run a command or write a file twice.
-    this.dataDispatch = createDispatch({ fetch: boundFetch, timeoutMs, maxRetries: 0 });
+    this.directDispatch = createDispatch({ fetch: boundFetch, timeoutMs, maxRetries: 0 });
 
     this.raw = new RawClient({ baseUrl: this.baseUrl, apiKey, dispatch: this.dispatch });
     this.sandboxes = new Sandboxes(this);
   }
 
-  // Opens a data-plane connection to a sandbox daemon at its connect_url, backed
-  // by this client's bearer auth and the no-retry transport.
-  createDataPlaneClient(connectUrl: string): SandboxConnection {
-    return new SandboxConnection({ connectUrl, apiKey: this.apiKey, dispatch: this.dataDispatch });
+  // Opens a connection to a sandbox daemon at its connect_url, backed by this
+  // client's bearer auth and the no-retry transport.
+  createSandboxConnection(connectUrl: string): SandboxConnection {
+    return new SandboxConnection({
+      connectUrl,
+      apiKey: this.apiKey,
+      dispatch: this.directDispatch,
+    });
   }
 
   // Builds a typed openapi-fetch client for a service's generated `paths` type,

@@ -59,10 +59,10 @@ export class Sandboxes {
     this.api = ctx.createTypedClient<paths>();
   }
 
-  // Opens a data-plane connection to a sandbox daemon at the given connect_url.
-  // Used by the Sandbox handle to back `sandbox.files` / `sandbox.exec`.
+  // Opens a connection to a sandbox daemon at the given connect_url. Used by the
+  // Sandbox handle to back `sandbox.files` / `sandbox.exec`.
   connect(connectUrl: string): SandboxConnection {
-    return this.ctx.createDataPlaneClient(connectUrl);
+    return this.ctx.createSandboxConnection(connectUrl);
   }
 
   // Creates a sandbox in the resolved org/project. The returned handle may still
