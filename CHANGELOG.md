@@ -15,4 +15,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - HTTP transport with timeout and exponential-backoff retries on network errors, `429`, and `5xx`.
 - Generated TypeScript types from the AI Agent Service OpenAPI spec.
 
+### Changed
+
+- Hybrid autogen architecture: a shared `dispatch` transport backs both a typed
+  `openapi-fetch` client (`createTypedClient`) for spec-backed services and a
+  `RawClient` (`raw.request`) escape hatch for endpoints without a spec yet.
+- `pnpm gen` now generates per-service types (`specs/<service>.yaml` →
+  `src/generated/<service>.ts`) so specs can be migrated one at a time.
+
 [Unreleased]: https://github.com/NeevCloudAI/neevai-sdk-js/commits/main

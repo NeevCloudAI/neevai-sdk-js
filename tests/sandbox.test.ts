@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NeevAI, NeevAIError } from "../src/index.js";
+import { type FetchLike, NeevAI, NeevAIError } from "../src/index.js";
 import { json, mockFetch, sandboxData } from "./helpers.js";
 
 // Builds a client backed by the given queued responses.
@@ -11,6 +11,19 @@ function client(queue: Array<Response | Error>) {
     projectId: "proj_test",
     maxRetries: 0,
     fetch: mock.fetch,
+  });
+}
+
+// Builds a client whose every response reports the given phase, so polling never
+// exhausts a finite queue.
+function alwaysPhaseClient(phase: string) {
+  const fetch: FetchLike = async () => json(200, sandboxData({ phase: phase as never }));
+  return new NeevAI({
+    apiKey: "k",
+    orgId: "org_test",
+    projectId: "proj_test",
+    maxRetries: 0,
+    fetch,
   });
 }
 
@@ -47,15 +60,16 @@ describe("Sandbox handle", () => {
   });
 
   it("waitUntilReady throws when the timeout elapses", async () => {
-    const neev = client([
-      json(201, sandboxData({ phase: "Pending" })),
-      json(200, sandboxData({ phase: "Pending" })),
-      json(200, sandboxData({ phase: "Pending" })),
-      json(200, sandboxData({ phase: "Pending" })),
-    ]);
+    const neev = alwaysPhaseClient("Pending");
     const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
-    await expect(sb.waitUntilReady({ pollIntervalMs: 1, timeoutMs: 5 })).rejects.toThrow(
+    await expect(sb.waitUntilReady({ pollIntervalMs: 1, timeoutMs: 10 })).rejects.toThrow(
       NeevAIError,
     );
+  });
+
+  it("waitUntilReady fails fast when the sandbox is Paused", async () => {
+    const neev = client([json(201, sandboxData({ phase: "Paused", replicas: 0 }))]);
+    const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
+    await expect(sb.waitUntilReady()).rejects.toThrow(/Paused/);
   });
 });

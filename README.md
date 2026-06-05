@@ -28,12 +28,11 @@ Requires a server-side JS runtime with global `fetch`: **Node 18+**, **Bun**, **
 
 The client reads configuration from explicit options or `NEEVCLOUD_*` environment variables:
 
-| Option      | Env var                 | Required | Default                          |
-| ----------- | ----------------------- | -------- | -------------------------------- |
-| `apiKey`    | `NEEVCLOUD_API_KEY`     | yes      | —                                |
-| `orgId`     | `NEEVCLOUD_ORG_ID`      | yes\*    | —                                |
-| `projectId` | `NEEVCLOUD_PROJECT_ID`  | yes\*    | —                                |
-| `baseURL`   | `NEEVCLOUD_BASE_URL`    | no       | `https://agent.ai.neevcloud.com` |
+| Option      | Env var                 | Required | Default |
+| ----------- | ----------------------- | -------- | ------- |
+| `apiKey`    | `NEEVCLOUD_API_KEY`     | yes      | —       |
+| `orgId`     | `NEEVCLOUD_ORG_ID`      | yes\*    | —       |
+| `projectId` | `NEEVCLOUD_PROJECT_ID`  | yes\*    | —       |
 
 \* `orgId` / `projectId` may be set on the client or overridden per call.
 
@@ -117,6 +116,19 @@ try {
 ```
 
 Transient failures (network errors, `429`, `5xx`) are retried automatically with exponential backoff (configurable via `maxRetries`).
+
+### Advanced: untyped requests
+
+Most resources are typed against an OpenAPI spec. For endpoints that don't have a published spec yet, `neev.raw` issues requests over the same transport (auth, retries, timeout, typed errors), with caller-supplied types:
+
+```ts
+const widget = await neev.raw.request<{ id: string }>({
+  method: "GET",
+  path: "/api/v1beta1/orgs/acme/projects/web/widgets/123",
+});
+```
+
+These graduate to fully-typed resource methods as specs land in the SDK.
 
 ## Documentation
 

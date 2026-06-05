@@ -1,4 +1,4 @@
-import type { components } from "./generated/types.js";
+import type { components } from "./generated/aiagent.js";
 
 // Clean, public-facing aliases over the generated OpenAPI schema types. Consumers
 // import these instead of reaching into the generated `components` tree.

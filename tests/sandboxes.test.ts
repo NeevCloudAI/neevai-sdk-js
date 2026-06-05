@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NeevAI, Sandbox } from "../src/index.js";
+import { NeevAI, NotFoundError, Sandbox } from "../src/index.js";
 import { json, mockFetch, sandboxData } from "./helpers.js";
 
 // Builds a client backed by the given queued responses.
@@ -75,6 +75,16 @@ describe("sandboxes resource", () => {
     const metrics = await neev.sandboxes.metrics("sb-1", { step: "60s" });
     expect(metrics.sandbox_id).toBe("sb-1");
     expect(calls[0]?.url).toMatch(/\/sandboxes\/sb-1\/metrics\?step=60s$/);
+  });
+
+  it("throws a typed error from the openapi-fetch client on a 404", async () => {
+    const { neev } = client([
+      json(404, { error: "not_found", details: "gone" }, { "x-request-id": "r1" }),
+    ]);
+    const err = await neev.sandboxes.get("missing").catch((e) => e);
+    expect(err).toBeInstanceOf(NotFoundError);
+    expect((err as NotFoundError).status).toBe(404);
+    expect((err as NotFoundError).requestId).toBe("r1");
   });
 
   it("applies a per-call scope override", async () => {

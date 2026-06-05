@@ -47,6 +47,17 @@ describe("NeevAI client", () => {
     expect(calls[0]?.headers.get("authorization")).toBe("Bearer secret-key");
   });
 
+  it("throws when no fetch implementation is available", () => {
+    const original = globalThis.fetch;
+    // Simulate a runtime without a global fetch.
+    (globalThis as { fetch?: typeof fetch }).fetch = undefined;
+    try {
+      expect(() => new NeevAI({ apiKey: "k", orgId: "o", projectId: "p" })).toThrow(/fetch/);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it("requires org and project at call time", async () => {
     const { fetch } = mockFetch([]);
     const client = new NeevAI({ apiKey: "k", fetch });
