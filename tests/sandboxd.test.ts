@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InternalServerError, NeevAI, NotFoundError } from "../src/index.js";
+import { InternalServerError, NeevAI, NotFoundError, PermissionDeniedError } from "../src/index.js";
 import { json, mockFetch, sandboxData } from "./helpers.js";
 
 // Builds a client and a Ready sandbox handle (with a connect_url), queueing the
@@ -127,6 +127,55 @@ describe("sandboxd", () => {
         json(404, { reason_code: "not_found", message: "missing" }),
       ]);
       await expect(sandbox.files.read("/missing")).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  describe("files.list", () => {
+    it("lists entries and maps them to camelCase", async () => {
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        json(200, {
+          entries: [
+            {
+              name: "a.txt",
+              type: "file",
+              path: "work/a.txt",
+              size: 12,
+              mode: 420,
+              permissions: "rw-r--r--",
+              modified_time: "2026-06-05T00:00:00Z",
+            },
+            {
+              name: "link",
+              type: "symlink",
+              path: "work/link",
+              size: 0,
+              mode: 511,
+              permissions: "rwxrwxrwx",
+              modified_time: "2026-06-05T00:00:00Z",
+              symlink_target: "a.txt",
+            },
+          ],
+        }),
+      ]);
+      const entries = await sandbox.files.list("/work", { recursive: true, maxCount: 50 });
+
+      expect(entries).toHaveLength(2);
+      expect(entries[0]?.modifiedTime).toBe("2026-06-05T00:00:00Z");
+      expect(entries[1]?.symlinkTarget).toBe("a.txt");
+      const call = calls[1];
+      expect(call?.url).toBe("https://sbx.sandboxes.example/v1/files/list");
+      expect(call?.body).toEqual({
+        path: "/work",
+        recursive: true,
+        max_count: 50,
+      });
+    });
+
+    it("maps a list error to a typed error", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        json(403, { reason_code: "permission_denied", message: "nope" }),
+      ]);
+      await expect(sandbox.files.list("/work")).rejects.toBeInstanceOf(PermissionDeniedError);
     });
   });
 });
