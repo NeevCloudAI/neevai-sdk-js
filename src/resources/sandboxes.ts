@@ -32,9 +32,9 @@ export interface SandboxPage {
   limit: number;
 }
 
-// Query window for a metrics read, plus an optional scope override. All time
-// fields are optional; the server defaults to the last hour.
-export interface MetricsParams extends Scope {
+// The time-window fields of a metrics read; shared by the resource method and the
+// Sandbox handle. All optional — the server defaults to the last hour.
+export interface MetricsQuery {
   // Start of the window (RFC3339). Defaults to one hour before `to`.
   from?: string;
   // End of the window (RFC3339). Defaults to now.
@@ -42,6 +42,9 @@ export interface MetricsParams extends Scope {
   // Resolution as a Go duration (e.g. "60s", "5m"). Server clamps to a sane range.
   step?: string;
 }
+
+// Query window for a metrics read, plus an optional scope override.
+export interface MetricsParams extends Scope, MetricsQuery {}
 
 // Sandbox lifecycle operations. Exposed as `client.sandboxes`. Every method
 // returns a Sandbox handle (or page of handles) so callers can chain lifecycle
@@ -63,7 +66,7 @@ export class Sandboxes {
       params: { path: { org_id: orgId, project_id: projectId } },
       body: params,
     });
-    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
+    return new Sandbox(this, unwrap<SandboxData>(res), scope);
   }
 
   // Lists sandboxes in the resolved org/project, returning wrapped handles.
@@ -75,7 +78,7 @@ export class Sandboxes {
     });
     const data = unwrap<SandboxListResponse>(res);
     return {
-      items: data.items.map((item) => new Sandbox(this.ctx, this, item, scope)),
+      items: data.items.map((item) => new Sandbox(this, item, scope)),
       total: data.total,
       page: data.page,
       limit: data.limit,
@@ -88,7 +91,7 @@ export class Sandboxes {
     const res = await this.api.GET(ITEM, {
       params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
-    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
+    return new Sandbox(this, unwrap<SandboxData>(res), scope);
   }
 
   // Pauses a sandbox (scales it to zero replicas) and returns the updated handle.
@@ -97,7 +100,7 @@ export class Sandboxes {
     const res = await this.api.POST(PAUSE, {
       params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
-    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
+    return new Sandbox(this, unwrap<SandboxData>(res), scope);
   }
 
   // Resumes a paused sandbox (scales it to one replica) and returns the updated handle.
@@ -106,7 +109,7 @@ export class Sandboxes {
     const res = await this.api.POST(RESUME, {
       params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
     });
-    return new Sandbox(this.ctx, this, unwrap<SandboxData>(res), scope);
+    return new Sandbox(this, unwrap<SandboxData>(res), scope);
   }
 
   // Permanently deletes a sandbox, removing the Kubernetes CR and the DB row.

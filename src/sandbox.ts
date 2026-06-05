@@ -1,6 +1,6 @@
-import type { RequestContext, Scope } from "./client.js";
+import type { Scope } from "./client.js";
 import { NeevAIError } from "./errors.js";
-import type { Sandboxes } from "./resources/sandboxes.js";
+import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
 import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
@@ -20,13 +20,11 @@ const DEFAULT_POLL_INTERVAL_MS = 2_000;
 // offers lifecycle actions that operate on this sandbox in place. Construct via
 // the `sandboxes` resource rather than directly.
 export class Sandbox {
-  private readonly ctx: RequestContext;
   private readonly sandboxes: Sandboxes;
   private readonly scope?: Scope;
   private state: SandboxData;
 
-  constructor(ctx: RequestContext, sandboxes: Sandboxes, data: SandboxData, scope?: Scope) {
-    this.ctx = ctx;
+  constructor(sandboxes: Sandboxes, data: SandboxData, scope?: Scope) {
     this.sandboxes = sandboxes;
     this.state = data;
     this.scope = scope;
@@ -94,28 +92,33 @@ export class Sandbox {
   }
 
   // Reads the live metric series for this sandbox.
-  async metrics(
-    params: { from?: string; to?: string; step?: string } = {},
-  ): Promise<SandboxMetricsResponse> {
+  async metrics(params: MetricsQuery = {}): Promise<SandboxMetricsResponse> {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
   }
 
   // Polls until the sandbox reaches the Ready phase, then resolves with this
-  // handle. Throws a NeevAIError if the timeout elapses first.
+  // handle. Fails fast if the sandbox is Paused (it will never become Ready on
+  // its own) and throws a NeevAIError if the timeout elapses first.
   async waitUntilReady(options: WaitOptions = {}): Promise<this> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
     const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     const deadline = Date.now() + timeoutMs;
 
-    // Poll the live phase until Ready or the deadline passes.
+    // Poll the live phase until Ready, a terminal Paused state, or the deadline.
     while (true) {
       if (this.phase === "Ready") return this;
-      if (Date.now() >= deadline) {
+      if (this.phase === "Paused") {
+        throw new NeevAIError(
+          `Sandbox ${this.id} is Paused and will not become Ready; call resume() first.`,
+        );
+      }
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
         throw new NeevAIError(
           `Sandbox ${this.id} did not become Ready within ${timeoutMs}ms (phase: ${this.phase}).`,
         );
       }
-      await sleep(pollIntervalMs);
+      await sleep(Math.min(pollIntervalMs, remaining));
       await this.refresh();
     }
   }

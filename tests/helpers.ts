@@ -45,7 +45,7 @@ export function mockFetch(queue: Array<Response | Error>): MockFetch {
       url: req.url,
       method: req.method,
       headers: req.headers,
-      body: text.length > 0 ? JSON.parse(text) : undefined,
+      body: parseMaybeJson(text),
     });
     const next = pending.shift();
     if (!next) throw new Error("mockFetch: no more queued responses");
@@ -53,6 +53,17 @@ export function mockFetch(queue: Array<Response | Error>): MockFetch {
     return next;
   };
   return { fetch, calls };
+}
+
+// Parses a recorded request body as JSON, falling back to the raw text (or
+// undefined when empty) so a non-JSON body never throws inside the recorder.
+function parseMaybeJson(text: string): unknown {
+  if (text.length === 0) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 // Builds a Sandbox record with sensible defaults, overridable per field.

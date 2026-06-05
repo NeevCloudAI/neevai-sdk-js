@@ -25,8 +25,10 @@ function generate(specFile) {
   const input = `${SPECS_DIR}/${specFile}`;
   const output = `${OUT_DIR}/${service}.ts`;
   console.log(`openapi-typescript ${input} -> ${output}`);
+  // `shell` is needed on Windows so the pnpm.cmd shim resolves via execFileSync.
   execFileSync("pnpm", ["exec", "openapi-typescript", input, "-o", output], {
     stdio: "inherit",
+    shell: process.platform === "win32",
   });
 }
 

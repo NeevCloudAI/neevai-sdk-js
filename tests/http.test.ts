@@ -69,6 +69,43 @@ describe("createDispatch", () => {
     await expect(dispatch(req())).rejects.toBeInstanceOf(APITimeoutError);
   });
 
+  it("rejects with a caller-abort APIConnectionError, not a timeout", async () => {
+    const controller = new AbortController();
+    const hanging: FetchLike = (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          reject(err);
+        });
+      });
+    const dispatch = createDispatch({ fetch: hanging, timeoutMs: 1000, maxRetries: 2 });
+    const request = new Request("http://localhost:7010/x", { signal: controller.signal });
+    const promise = dispatch(request);
+    controller.abort();
+    const err = await promise.catch((e) => e);
+    expect(err).toBeInstanceOf(APIConnectionError);
+    expect(err).not.toBeInstanceOf(APITimeoutError);
+    expect(String(err.message)).toContain("aborted by caller");
+  });
+
+  it("honors a numeric Retry-After header", async () => {
+    let attempts = 0;
+    const dispatch = createDispatch({
+      fetch: async () => {
+        attempts++;
+        return attempts === 1
+          ? json(429, { error: "slow_down" }, { "retry-after": "0" })
+          : json(200, { ok: true });
+      },
+      timeoutMs: 50,
+      maxRetries: 1,
+    });
+    const res = await dispatch(req());
+    expect(res.status).toBe(200);
+    expect(attempts).toBe(2);
+  });
+
   it("raises APIConnectionError on a network failure", async () => {
     const dispatch = createDispatch({
       fetch: async () => {

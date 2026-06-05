@@ -28,12 +28,11 @@ Requires a server-side JS runtime with global `fetch`: **Node 18+**, **Bun**, **
 
 The client reads configuration from explicit options or `NEEVCLOUD_*` environment variables:
 
-| Option      | Env var                 | Required | Default                          |
-| ----------- | ----------------------- | -------- | -------------------------------- |
-| `apiKey`    | `NEEVCLOUD_API_KEY`     | yes      | —                                |
-| `orgId`     | `NEEVCLOUD_ORG_ID`      | yes\*    | —                                |
-| `projectId` | `NEEVCLOUD_PROJECT_ID`  | yes\*    | —                                |
-| `baseURL`   | `NEEVCLOUD_BASE_URL`    | no       | `https://agent.ai.neevcloud.com` |
+| Option      | Env var                 | Required | Default |
+| ----------- | ----------------------- | -------- | ------- |
+| `apiKey`    | `NEEVCLOUD_API_KEY`     | yes      | —       |
+| `orgId`     | `NEEVCLOUD_ORG_ID`      | yes\*    | —       |
+| `projectId` | `NEEVCLOUD_PROJECT_ID`  | yes\*    | —       |
 
 \* `orgId` / `projectId` may be set on the client or overridden per call.
 
