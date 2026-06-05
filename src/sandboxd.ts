@@ -34,6 +34,14 @@ export interface WriteFileResult {
   bytesWritten: number;
 }
 
+// Options for a file read.
+export interface ReadFileOptions {
+  // Working directory the path is resolved against, if relative.
+  cwd?: string;
+  // Caller cancellation signal.
+  signal?: AbortSignal;
+}
+
 // A live connection to one sandbox's daemon (sandboxd), reached directly at the
 // sandbox's connect_url. Construct via NeevAI.createSandboxConnection or, more
 // commonly, access it through `sandbox.files` / `sandbox.exec`.
@@ -98,6 +106,23 @@ export class SandboxFiles {
     });
     const body = (await response.json()) as { bytes_written: number };
     return { bytesWritten: body.bytes_written };
+  }
+
+  // Reads a file from the sandbox and returns its raw bytes (binary-safe).
+  async read(path: string, options: ReadFileOptions = {}): Promise<Uint8Array> {
+    const response = await this.conn.request({
+      method: "POST",
+      path: "/v1/files/read",
+      headers: { "content-type": "application/json", accept: "application/octet-stream" },
+      body: JSON.stringify({ path, cwd: options.cwd }),
+      signal: options.signal,
+    });
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  // Reads a file from the sandbox and decodes it as a UTF-8 string.
+  async readText(path: string, options: ReadFileOptions = {}): Promise<string> {
+    return new TextDecoder().decode(await this.read(path, options));
   }
 }
 

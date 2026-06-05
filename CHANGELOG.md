@@ -16,6 +16,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Generated TypeScript types from the AI Agent Service OpenAPI spec.
 - Sandbox files: `sandbox.files.write()` writes files to a running sandbox via
   its sandboxd daemon (reached at `connect_url`; not retried).
+- Sandbox files: `sandbox.files.read()` (raw `Uint8Array`) and
+  `sandbox.files.readText()` (UTF-8) read files from a running sandbox.
 
 ### Changed
 
