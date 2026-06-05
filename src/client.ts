@@ -2,6 +2,7 @@ import createClient, { type Client } from "openapi-fetch";
 import { NeevAIError } from "./errors.js";
 import { type Dispatch, type FetchLike, RawClient, createDispatch } from "./http.js";
 import { Sandboxes } from "./resources/sandboxes.js";
+import { SandboxConnection } from "./sandboxd.js";
 
 // Per-call override of the org/project the request targets. When omitted, the
 // client-level defaults (constructor args or NEEVCLOUD_* env vars) are used.
@@ -37,6 +38,9 @@ export interface RequestContext {
   createTypedClient<Paths extends {}>(): Client<Paths>;
   // Untyped client for spec-less endpoints.
   readonly raw: RawClient;
+  // Opens a data-plane connection to a sandbox daemon at its connect_url. Uses a
+  // no-retry transport so non-idempotent data-plane calls never double-fire.
+  createDataPlaneClient(connectUrl: string): SandboxConnection;
   // Resolves the effective org/project for a call.
   resolveScope(scope?: Scope): { orgId: string; projectId: string };
 }
@@ -59,6 +63,7 @@ export class NeevAI implements RequestContext {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly dispatch: Dispatch;
+  private readonly dataDispatch: Dispatch;
   private readonly defaultOrgId?: string;
   private readonly defaultProjectId?: string;
 
@@ -81,14 +86,25 @@ export class NeevAI implements RequestContext {
     this.baseUrl = options.baseURL ?? readEnv("NEEVCLOUD_BASE_URL") ?? DEFAULT_BASE_URL;
     this.defaultOrgId = options.orgId ?? readEnv("NEEVCLOUD_ORG_ID");
     this.defaultProjectId = options.projectId ?? readEnv("NEEVCLOUD_PROJECT_ID");
+    const boundFetch = baseFetch.bind(globalThis);
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.dispatch = createDispatch({
-      fetch: baseFetch.bind(globalThis),
-      timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      fetch: boundFetch,
+      timeoutMs,
       maxRetries: options.maxRetries ?? DEFAULT_MAX_RETRIES,
     });
+    // The data plane never retries: exec/write are not idempotent, so a retried
+    // 5xx could run a command or write a file twice.
+    this.dataDispatch = createDispatch({ fetch: boundFetch, timeoutMs, maxRetries: 0 });
 
     this.raw = new RawClient({ baseUrl: this.baseUrl, apiKey, dispatch: this.dispatch });
     this.sandboxes = new Sandboxes(this);
+  }
+
+  // Opens a data-plane connection to a sandbox daemon at its connect_url, backed
+  // by this client's bearer auth and the no-retry transport.
+  createDataPlaneClient(connectUrl: string): SandboxConnection {
+    return new SandboxConnection({ connectUrl, apiKey: this.apiKey, dispatch: this.dataDispatch });
   }
 
   // Builds a typed openapi-fetch client for a service's generated `paths` type,

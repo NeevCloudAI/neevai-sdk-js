@@ -1,6 +1,7 @@
 import type { Scope } from "./client.js";
 import { NeevAIError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
+import type { SandboxConnection, SandboxFiles } from "./sandboxd.js";
 import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
@@ -23,6 +24,7 @@ export class Sandbox {
   private readonly sandboxes: Sandboxes;
   private readonly scope?: Scope;
   private state: SandboxData;
+  private connection?: SandboxConnection;
 
   constructor(sandboxes: Sandboxes, data: SandboxData, scope?: Scope) {
     this.sandboxes = sandboxes;
@@ -53,6 +55,12 @@ export class Sandbox {
   // Data-plane address the SDK reaches directly, or null when not configured.
   get connectUrl(): string | null {
     return this.state.connect_url ?? null;
+  }
+
+  // Filesystem operations on this sandbox's data-plane daemon. Throws if the
+  // sandbox has no connect_url yet (it must be Ready / data-plane configured).
+  get files(): SandboxFiles {
+    return this.dataPlane().files;
   }
 
   // Full raw sandbox record exactly as returned by the API.
@@ -94,6 +102,21 @@ export class Sandbox {
   // Reads the live metric series for this sandbox.
   async metrics(params: MetricsQuery = {}): Promise<SandboxMetricsResponse> {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
+  }
+
+  // Lazily opens (and caches) the data-plane connection for this sandbox. Throws
+  // if connect_url is not yet available.
+  private dataPlane(): SandboxConnection {
+    if (!this.connection) {
+      const connectUrl = this.state.connect_url;
+      if (!connectUrl) {
+        throw new NeevAIError(
+          `Sandbox ${this.id} has no connect_url yet; it must be Ready before data-plane access.`,
+        );
+      }
+      this.connection = this.sandboxes.connect(connectUrl);
+    }
+    return this.connection;
   }
 
   // Polls until the sandbox reaches the Ready phase, then resolves with this
