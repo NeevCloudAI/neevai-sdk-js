@@ -26,15 +26,14 @@ Requires a server-side JS runtime with global `fetch`: **Node 18+**, **Bun**, **
 
 ## Authentication
 
-The client reads configuration from explicit options or `NEEVAI_*` environment variables:
+The client reads configuration from explicit options or `NEEVCLOUD_*` environment variables:
 
-| Option      | Env var              | Required | Default                                |
-| ----------- | -------------------- | -------- | -------------------------------------- |
-| `apiKey`    | `NEEVAI_API_KEY`     | yes      | —                                      |
-| `orgId`     | `NEEVAI_ORG_ID`      | yes\*    | —                                      |
-| `projectId` | `NEEVAI_PROJECT_ID`  | yes\*    | —                                      |
-| `env`       | `NEEVAI_ENV`         | no       | `dev`                                  |
-| `baseURL`   | `NEEVAI_BASE_URL`    | no       | `https://agent.<env>.ai.neevcloud.com` |
+| Option      | Env var                 | Required | Default                          |
+| ----------- | ----------------------- | -------- | -------------------------------- |
+| `apiKey`    | `NEEVCLOUD_API_KEY`     | yes      | —                                |
+| `orgId`     | `NEEVCLOUD_ORG_ID`      | yes\*    | —                                |
+| `projectId` | `NEEVCLOUD_PROJECT_ID`  | yes\*    | —                                |
+| `baseURL`   | `NEEVCLOUD_BASE_URL`    | no       | `https://agent.ai.neevcloud.com` |
 
 \* `orgId` / `projectId` may be set on the client or overridden per call.
 
@@ -44,15 +43,15 @@ The client reads configuration from explicit options or `NEEVAI_*` environment v
 import { NeevAI } from "@neevai/sdk";
 
 const neev = new NeevAI({
-  apiKey: process.env.NEEVAI_API_KEY,
-  orgId: process.env.NEEVAI_ORG_ID,
-  projectId: process.env.NEEVAI_PROJECT_ID,
+  apiKey: process.env.NEEVCLOUD_API_KEY,
+  orgId: process.env.NEEVCLOUD_ORG_ID,
+  projectId: process.env.NEEVCLOUD_PROJECT_ID,
 });
 
 // Create a sandbox and wait for it to come up.
 const sandbox = await neev.sandboxes.create({
   name: "my-agent",
-  image: "ghcr.io/neevcloud/agent-base:latest",
+  image: "ghcr.io/neevcloud/sandbox-python:3.12",
 });
 await sandbox.waitUntilReady();
 
