@@ -12,6 +12,8 @@ export type { WaitOptions } from "./sandbox.js";
 
 export { SandboxConnection, SandboxFiles } from "./sandboxd.js";
 export type {
+  ExecOptions,
+  ExecResult,
   FileEntry,
   ListFilesOptions,
   ReadFileOptions,

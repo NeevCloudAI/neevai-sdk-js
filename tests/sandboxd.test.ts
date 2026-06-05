@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { InternalServerError, NeevAI, NotFoundError, PermissionDeniedError } from "../src/index.js";
+import {
+  DeadlineExceededError,
+  InternalServerError,
+  NeevAI,
+  NeevAIError,
+  NotFoundError,
+  PermissionDeniedError,
+} from "../src/index.js";
 import { json, mockFetch, sandboxData } from "./helpers.js";
 
 // Builds a client and a Ready sandbox handle (with a connect_url), queueing the
@@ -176,6 +183,116 @@ describe("sandboxd", () => {
         json(403, { reason_code: "permission_denied", message: "nope" }),
       ]);
       await expect(sandbox.files.list("/work")).rejects.toBeInstanceOf(PermissionDeniedError);
+    });
+  });
+
+  describe("exec", () => {
+    // Builds an NDJSON exec stream Response from frame objects.
+    function ndjson(frames: unknown[]): Response {
+      const text = frames.map((f) => JSON.stringify(f)).join("\n");
+      return new Response(text, { status: 200 });
+    }
+
+    it("drains the NDJSON stream into buffered stdout/stderr/exitCode", async () => {
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa("hello ") },
+          { type: "stderr", data: btoa("warn") },
+          { type: "stdout", data: btoa("world") },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const result = await sandbox.exec("echo", { args: ["hi"] });
+
+      expect(result.stdout).toBe("hello world");
+      expect(result.stderr).toBe("warn");
+      expect(result.exitCode).toBe(0);
+      const call = calls[1];
+      expect(call?.url).toBe("https://sbx.sandboxes.example/v1/exec");
+      expect(call?.body).toEqual({ command: "echo", args: ["hi"] });
+    });
+
+    it("maps an argv array to command + args", async () => {
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "exit", exit_code: 0 }]),
+      ]);
+      await sandbox.exec(["python", "/work/x.py"]);
+      expect(calls[1]?.body).toEqual({ command: "python", args: ["/work/x.py"] });
+    });
+
+    it("returns a non-zero exit code without throwing", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stderr", data: btoa("boom") },
+          { type: "exit", exit_code: 2 },
+        ]),
+      ]);
+      const result = await sandbox.exec("false");
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toBe("boom");
+    });
+
+    it("maps a terminal error frame to the matching typed error", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa("partial") },
+          { type: "error", reason_code: "deadline_exceeded", message: "timed out" },
+        ]),
+      ]);
+      const err = await sandbox.exec("sleep", { args: ["999"] }).catch((e) => e);
+      expect(err).toBeInstanceOf(DeadlineExceededError);
+      expect((err as DeadlineExceededError).details).toBe("timed out");
+    });
+
+    it("maps a non-5xx error frame to its typed error", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "error", reason_code: "permission_denied", message: "denied" }]),
+      ]);
+      await expect(sandbox.exec("whoami")).rejects.toBeInstanceOf(PermissionDeniedError);
+    });
+
+    it("maps the env record to a K=V array on the wire", async () => {
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "exit", exit_code: 0 }]),
+      ]);
+      await sandbox.exec("env", { env: { FOO: "bar", BAZ: "qux" } });
+      expect((calls[1]?.body as { env: string[] }).env).toEqual(["FOO=bar", "BAZ=qux"]);
+    });
+
+    it("returns empty output when no stdout/stderr frames arrive", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "exit", exit_code: 0 }]),
+      ]);
+      const result = await sandbox.exec("true");
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toBe("");
+    });
+
+    it("decodes a multi-byte UTF-8 char split across two frames", async () => {
+      // "é" is 0xC3 0xA9; deliver each byte in a separate stdout frame.
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa(String.fromCharCode(0xc3)) },
+          { type: "stdout", data: btoa(String.fromCharCode(0xa9)) },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const result = await sandbox.exec("printf");
+      expect(result.stdout).toBe("é");
+    });
+
+    it("throws when the stream ends without an exit frame", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "stdout", data: btoa("partial") }]),
+      ]);
+      await expect(sandbox.exec("sleep")).rejects.toThrow(/exit status/);
+    });
+
+    it("throws when args are given both in the argv array and options.args", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", []);
+      await expect(sandbox.exec(["git", "status"], { args: ["-s"] })).rejects.toBeInstanceOf(
+        NeevAIError,
+      );
     });
   });
 });
