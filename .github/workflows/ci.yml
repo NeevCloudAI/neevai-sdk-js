@@ -1,18 +1,28 @@
+# SDK CI — mirrors the conventions in the backend's .github/workflows:
+#   - self-hosted neevai-runner-dev
+#   - actions/checkout@v4
+#   - runs on every PR to main + every push to main, plus manual dispatch
+#   - concurrency group per ref with cancel-in-progress
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
   pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: test (node ${{ matrix.node }})
-    runs-on: ubuntu-latest
+  build_and_test:
+    name: Build and Test (node ${{ matrix.node }})
+    runs-on: neevai-runner-dev
     strategy:
       fail-fast: false
       matrix:
@@ -34,9 +44,9 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm build
 
-  bun:
-    name: smoke (bun)
-    runs-on: ubuntu-latest
+  bun_smoke:
+    name: Smoke (bun)
+    runs-on: neevai-runner-dev
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

@@ -28,4 +28,4 @@ window for prior majors.
 
 `@neevai/sdk` is a server-side SDK. Never embed a NeevAI API key in client-side
 or browser code, and never commit keys to version control. Use environment
-variables (`NEEVAI_API_KEY`) or a secrets manager.
+variables (`NEEVCLOUD_API_KEY`) or a secrets manager.

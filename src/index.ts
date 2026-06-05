@@ -2,11 +2,7 @@
 // the Sandbox handle, and the typed error hierarchy.
 
 export { NeevAI } from "./client.js";
-export type {
-  NeevAIOptions,
-  NeevEnv,
-  Scope,
-} from "./client.js";
+export type { NeevAIOptions, Scope } from "./client.js";
 
 export { Sandbox } from "./sandbox.js";
 export type { WaitOptions } from "./sandbox.js";

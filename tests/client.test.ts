@@ -7,18 +7,17 @@ describe("NeevAI client", () => {
     expect(() => new NeevAI({ orgId: "o", projectId: "p" })).toThrow(NeevAIError);
   });
 
-  it("derives the base URL from the env shorthand", async () => {
+  it("uses the default production base URL", async () => {
     const { fetch, calls } = mockFetch([new Response(null, { status: 204 })]);
     const client = new NeevAI({
       apiKey: "k",
       orgId: "o",
       projectId: "p",
-      env: "stg",
       maxRetries: 0,
       fetch,
     });
     await client.sandboxes.delete("sb");
-    expect(calls[0]?.url).toContain("https://agent.stg.ai.neevcloud.com");
+    expect(calls[0]?.url).toContain("https://agent.ai.neevcloud.com");
   });
 
   it("honors an explicit baseURL override", async () => {

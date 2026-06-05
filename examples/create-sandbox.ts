@@ -2,19 +2,19 @@
  * Create a sandbox, wait for it to become Ready, read its metrics, then clean up.
  *
  * Run with:
- *   NEEVAI_API_KEY=... NEEVAI_ORG_ID=... NEEVAI_PROJECT_ID=... \
+ *   NEEVCLOUD_API_KEY=... NEEVCLOUD_ORG_ID=... NEEVCLOUD_PROJECT_ID=... \
  *     npx tsx examples/create-sandbox.ts
  */
 import { NeevAI } from "@neevai/sdk";
 
-// Construct the client from NEEVAI_* environment variables.
+// Construct the client from NEEVCLOUD_* environment variables.
 const neev = new NeevAI();
 
 async function main(): Promise<void> {
   // Provision a sandbox from a container image.
   const sandbox = await neev.sandboxes.create({
     name: "example-agent",
-    image: "ghcr.io/neevcloud/agent-base:latest",
+    image: "ghcr.io/neevcloud/sandbox-python:3.12",
   });
   console.log(`created ${sandbox.id} (phase: ${sandbox.phase})`);
 
