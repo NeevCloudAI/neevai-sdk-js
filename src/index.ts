@@ -10,6 +10,9 @@ export type { FetchLike, RawRequest } from "./http.js";
 export { Sandbox } from "./sandbox.js";
 export type { WaitOptions } from "./sandbox.js";
 
+export { SandboxConnection, SandboxFiles } from "./sandboxd.js";
+export type { WriteFileOptions, WriteFileResult } from "./sandboxd.js";
+
 export type {
   ListSandboxesParams,
   MetricsParams,
@@ -34,10 +37,12 @@ export {
   AuthenticationError,
   BadRequestError,
   ConflictError,
+  DeadlineExceededError,
   InternalServerError,
   NeevAIError,
   NotFoundError,
   PermissionDeniedError,
+  PreconditionFailedError,
   RateLimitError,
 } from "./errors.js";
 export type { ApiErrorBody } from "./errors.js";

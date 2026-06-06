@@ -1,6 +1,7 @@
 import type { Scope } from "./client.js";
 import { NeevAIError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
+import type { SandboxConnection, SandboxFiles } from "./sandboxd.js";
 import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
@@ -23,6 +24,7 @@ export class Sandbox {
   private readonly sandboxes: Sandboxes;
   private readonly scope?: Scope;
   private state: SandboxData;
+  private conn?: SandboxConnection;
 
   constructor(sandboxes: Sandboxes, data: SandboxData, scope?: Scope) {
     this.sandboxes = sandboxes;
@@ -50,9 +52,15 @@ export class Sandbox {
     return this.state.replicas;
   }
 
-  // Data-plane address the SDK reaches directly, or null when not configured.
+  // Direct address of the sandbox daemon, or null when not configured.
   get connectUrl(): string | null {
     return this.state.connect_url ?? null;
+  }
+
+  // Filesystem operations on this sandbox's daemon. Throws if the sandbox has no
+  // connect_url yet (it must be Ready before file operations).
+  get files(): SandboxFiles {
+    return this.connection().files;
   }
 
   // Full raw sandbox record exactly as returned by the API.
@@ -94,6 +102,21 @@ export class Sandbox {
   // Reads the live metric series for this sandbox.
   async metrics(params: MetricsQuery = {}): Promise<SandboxMetricsResponse> {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
+  }
+
+  // Lazily opens (and caches) the daemon connection for this sandbox. Throws if
+  // connect_url is not yet available.
+  private connection(): SandboxConnection {
+    if (!this.conn) {
+      const connectUrl = this.state.connect_url;
+      if (!connectUrl) {
+        throw new NeevAIError(
+          `Sandbox ${this.id} has no connect_url yet; it must be Ready before file or exec operations.`,
+        );
+      }
+      this.conn = this.sandboxes.connect(connectUrl);
+    }
+    return this.conn;
   }
 
   // Polls until the sandbox reaches the Ready phase, then resolves with this

@@ -3,6 +3,7 @@ import type { RequestContext, Scope } from "../client.js";
 import type { paths } from "../generated/aiagent.js";
 import { ensureOk, unwrap } from "../http.js";
 import { Sandbox } from "../sandbox.js";
+import type { SandboxConnection } from "../sandboxd.js";
 import type {
   CreateSandboxParams,
   SandboxData,
@@ -56,6 +57,12 @@ export class Sandboxes {
   constructor(ctx: RequestContext) {
     this.ctx = ctx;
     this.api = ctx.createTypedClient<paths>();
+  }
+
+  // Opens a connection to a sandbox daemon at the given connect_url. Used by the
+  // Sandbox handle to back `sandbox.files` / `sandbox.exec`.
+  connect(connectUrl: string): SandboxConnection {
+    return this.ctx.createSandboxConnection(connectUrl);
   }
 
   // Creates a sandbox in the resolved org/project. The returned handle may still

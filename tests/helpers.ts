@@ -6,7 +6,12 @@ export interface RecordedCall {
   url: string;
   method: string;
   headers: Headers;
+  // Body parsed as JSON when possible, else the raw text.
   body: unknown;
+  // Raw request body bytes, for binary-body assertions.
+  bodyBytes: Uint8Array;
+  // The request's abort signal (always present on a Request).
+  signal: AbortSignal;
 }
 
 // A scripted fetch and the log of calls made against it.
@@ -40,12 +45,15 @@ export function mockFetch(queue: Array<Response | Error>): MockFetch {
   const pending = [...queue];
   const fetch: FetchLike = async (input, init) => {
     const req = input instanceof Request ? input : new Request(String(input), init);
-    const text = await req.clone().text();
+    const bodyBytes = new Uint8Array(await req.clone().arrayBuffer());
+    const text = new TextDecoder().decode(bodyBytes);
     calls.push({
       url: req.url,
       method: req.method,
       headers: req.headers,
       body: parseMaybeJson(text),
+      bodyBytes,
+      signal: req.signal,
     });
     const next = pending.shift();
     if (!next) throw new Error("mockFetch: no more queued responses");

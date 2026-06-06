@@ -60,8 +60,12 @@ export class PermissionDeniedError extends APIError {}
 export class NotFoundError extends APIError {}
 // 409 — the resource already exists or conflicts with current state.
 export class ConflictError extends APIError {}
+// 412 — a precondition failed (e.g. unsupported protocol version).
+export class PreconditionFailedError extends APIError {}
 // 429 — rate limit exceeded.
 export class RateLimitError extends APIError {}
+// 504 — the operation exceeded the server's deadline.
+export class DeadlineExceededError extends APIError {}
 // 5xx — the server failed to handle a valid request.
 export class InternalServerError extends APIError {}
 
@@ -95,8 +99,12 @@ export function errorFromStatus(
       return new NotFoundError(status, body, requestId);
     case 409:
       return new ConflictError(status, body, requestId);
+    case 412:
+      return new PreconditionFailedError(status, body, requestId);
     case 429:
       return new RateLimitError(status, body, requestId);
+    case 504:
+      return new DeadlineExceededError(status, body, requestId);
     default:
       if (status >= 500) return new InternalServerError(status, body, requestId);
       return new APIError(status, body, requestId);

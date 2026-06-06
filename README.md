@@ -130,6 +130,17 @@ const widget = await neev.raw.request<{ id: string }>({
 
 These graduate to fully-typed resource methods as specs land in the SDK.
 
+### Working inside a sandbox (files)
+
+Operations that act inside a running sandbox are reached directly on the sandbox handle (the sandbox must be Ready):
+
+```ts
+const sandbox = await neev.sandboxes.get(id);
+await sandbox.files.write("/work/main.py", "print('hi')"); // → { bytesWritten }
+```
+
+These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.
+
 ## Documentation
 
 Full platform documentation: <https://docs.neevcloud.com>.
