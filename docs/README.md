@@ -1,6 +1,6 @@
 # Documentation
 
-The canonical NeevAI platform documentation lives at
+The canonical Neev platform documentation lives at
 <https://docs.neevcloud.com>.
 
 This directory holds SDK-specific notes and guides. For day-to-day usage, start

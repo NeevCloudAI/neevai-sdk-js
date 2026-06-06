@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { NeevAI, NeevAIError } from "../src/index.js";
+import { Neev, NeevError } from "../src/index.js";
 import { mockFetch } from "./helpers.js";
 
-describe("NeevAI client", () => {
+describe("Neev client", () => {
   it("throws when no API key is provided", () => {
-    expect(() => new NeevAI({ orgId: "o", projectId: "p" })).toThrow(NeevAIError);
+    expect(() => new Neev({ orgId: "o", projectId: "p" })).toThrow(NeevError);
   });
 
   it("uses the default production base URL", async () => {
     const { fetch, calls } = mockFetch([new Response(null, { status: 204 })]);
-    const client = new NeevAI({
+    const client = new Neev({
       apiKey: "k",
       orgId: "o",
       projectId: "p",
@@ -22,7 +22,7 @@ describe("NeevAI client", () => {
 
   it("honors an explicit baseURL override", async () => {
     const { fetch, calls } = mockFetch([new Response(null, { status: 204 })]);
-    const client = new NeevAI({
+    const client = new Neev({
       apiKey: "k",
       orgId: "o",
       projectId: "p",
@@ -36,7 +36,7 @@ describe("NeevAI client", () => {
 
   it("attaches the bearer token to requests", async () => {
     const { fetch, calls } = mockFetch([new Response(null, { status: 204 })]);
-    const client = new NeevAI({
+    const client = new Neev({
       apiKey: "secret-key",
       orgId: "o",
       projectId: "p",
@@ -52,7 +52,7 @@ describe("NeevAI client", () => {
     // Simulate a runtime without a global fetch.
     (globalThis as { fetch?: typeof fetch }).fetch = undefined;
     try {
-      expect(() => new NeevAI({ apiKey: "k", orgId: "o", projectId: "p" })).toThrow(/fetch/);
+      expect(() => new Neev({ apiKey: "k", orgId: "o", projectId: "p" })).toThrow(/fetch/);
     } finally {
       globalThis.fetch = original;
     }
@@ -60,7 +60,7 @@ describe("NeevAI client", () => {
 
   it("requires org and project at call time", async () => {
     const { fetch } = mockFetch([]);
-    const client = new NeevAI({ apiKey: "k", fetch });
+    const client = new Neev({ apiKey: "k", fetch });
     await expect(client.sandboxes.get("sb")).rejects.toThrow(/orgId/);
   });
 });

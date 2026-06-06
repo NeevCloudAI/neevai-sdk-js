@@ -1,5 +1,5 @@
 import createClient, { type Client } from "openapi-fetch";
-import { NeevAIError } from "./errors.js";
+import { NeevError } from "./errors.js";
 import { type Dispatch, type FetchLike, RawClient, createDispatch } from "./http.js";
 import { Sandboxes } from "./resources/sandboxes.js";
 import { SandboxConnection } from "./sandboxd.js";
@@ -11,16 +11,16 @@ export interface Scope {
   projectId?: string;
 }
 
-// Configuration accepted by the NeevAI constructor. Every field is optional and
+// Configuration accepted by the Neev constructor. Every field is optional and
 // falls back to a NEEVCLOUD_* environment variable or a built-in default.
-export interface NeevAIOptions {
+export interface NeevOptions {
   // Bearer API key. Falls back to NEEVCLOUD_API_KEY. Required.
   apiKey?: string;
   // Default organization id. Falls back to NEEVCLOUD_ORG_ID.
   orgId?: string;
   // Default project id. Falls back to NEEVCLOUD_PROJECT_ID.
   projectId?: string;
-  // Base URL of the NeevAI API. Falls back to NEEVCLOUD_BASE_URL, then the default host.
+  // Base URL of the Neev API. Falls back to NEEVCLOUD_BASE_URL, then the default host.
   baseURL?: string;
   // Per-request timeout in milliseconds. Defaults to 60000.
   timeoutMs?: number;
@@ -45,16 +45,16 @@ export interface RequestContext {
   resolveScope(scope?: Scope): { orgId: string; projectId: string };
 }
 
-// Default base URL of the NeevAI agent API.
+// Default base URL of the Neev agent API.
 const DEFAULT_BASE_URL = "https://agent.ai.neevcloud.com";
 // Default per-request timeout in milliseconds.
 const DEFAULT_TIMEOUT_MS = 60_000;
 // Default number of retries for transient failures.
 const DEFAULT_MAX_RETRIES = 2;
 
-// The NeevAI platform client. Construct once and reuse; resource namespaces such
+// The Neev platform client. Construct once and reuse; resource namespaces such
 // as `sandboxes` hang off the instance.
-export class NeevAI implements RequestContext {
+export class Neev implements RequestContext {
   // Untyped client for endpoints that do not have an OpenAPI spec yet.
   readonly raw: RawClient;
   // Sandbox lifecycle operations.
@@ -67,17 +67,17 @@ export class NeevAI implements RequestContext {
   private readonly defaultOrgId?: string;
   private readonly defaultProjectId?: string;
 
-  constructor(options: NeevAIOptions = {}) {
+  constructor(options: NeevOptions = {}) {
     const apiKey = options.apiKey ?? readEnv("NEEVCLOUD_API_KEY");
     if (!apiKey) {
-      throw new NeevAIError(
+      throw new NeevError(
         "Missing API key. Pass `apiKey` or set the NEEVCLOUD_API_KEY environment variable.",
       );
     }
 
     const baseFetch = options.fetch ?? globalThis.fetch;
     if (!baseFetch) {
-      throw new NeevAIError(
+      throw new NeevError(
         "No global fetch found. Use Node 18+, Bun, Deno, or pass a `fetch` implementation.",
       );
     }
@@ -127,12 +127,12 @@ export class NeevAI implements RequestContext {
     const orgId = scope?.orgId ?? this.defaultOrgId;
     const projectId = scope?.projectId ?? this.defaultProjectId;
     if (!orgId) {
-      throw new NeevAIError(
+      throw new NeevError(
         "Missing orgId. Set it on the client, via NEEVCLOUD_ORG_ID, or per call.",
       );
     }
     if (!projectId) {
-      throw new NeevAIError(
+      throw new NeevError(
         "Missing projectId. Set it on the client, via NEEVCLOUD_PROJECT_ID, or per call.",
       );
     }

@@ -1,18 +1,18 @@
 {
-  "name": "@neevai/sdk",
+  "name": "@neev/sdk",
   "version": "0.1.0",
-  "description": "Official NeevCloud SDK for the NeevAI platform — Node, Bun, Deno & edge. First up: agent sandboxes.",
+  "description": "Official NeevCloud SDK for the Neev platform — Node, Bun, Deno & edge. First up: agent sandboxes.",
   "license": "Apache-2.0",
   "author": "NeevCloud",
-  "homepage": "https://github.com/NeevCloudAI/neevai-sdk-js#readme",
+  "homepage": "https://github.com/NeevCloudAI/neev-sdk-js#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NeevCloudAI/neevai-sdk-js.git"
+    "url": "git+https://github.com/NeevCloudAI/neev-sdk-js.git"
   },
   "bugs": {
-    "url": "https://github.com/NeevCloudAI/neevai-sdk-js/issues"
+    "url": "https://github.com/NeevCloudAI/neev-sdk-js/issues"
   },
-  "keywords": ["neevai", "neevcloud", "sdk", "agent", "sandbox", "ai", "gpu", "gvisor"],
+  "keywords": ["neev", "neevcloud", "sdk", "agent", "sandbox", "ai", "gpu", "gvisor"],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

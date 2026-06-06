@@ -1,5 +1,5 @@
 import type { Scope } from "./client.js";
-import { NeevAIError } from "./errors.js";
+import { NeevError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
 import type { ExecOptions, ExecResult, SandboxConnection, SandboxFiles } from "./sandboxd.js";
 import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
@@ -116,7 +116,7 @@ export class Sandbox {
     if (!this.conn) {
       const connectUrl = this.state.connect_url;
       if (!connectUrl) {
-        throw new NeevAIError(
+        throw new NeevError(
           `Sandbox ${this.id} has no connect_url yet; it must be Ready before file or exec operations.`,
         );
       }
@@ -127,7 +127,7 @@ export class Sandbox {
 
   // Polls until the sandbox reaches the Ready phase, then resolves with this
   // handle. Fails fast if the sandbox is Paused (it will never become Ready on
-  // its own) and throws a NeevAIError if the timeout elapses first.
+  // its own) and throws a NeevError if the timeout elapses first.
   async waitUntilReady(options: WaitOptions = {}): Promise<this> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS;
     const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
@@ -137,13 +137,13 @@ export class Sandbox {
     while (true) {
       if (this.phase === "Ready") return this;
       if (this.phase === "Paused") {
-        throw new NeevAIError(
+        throw new NeevError(
           `Sandbox ${this.id} is Paused and will not become Ready; call resume() first.`,
         );
       }
       const remaining = deadline - Date.now();
       if (remaining <= 0) {
-        throw new NeevAIError(
+        throw new NeevError(
           `Sandbox ${this.id} did not become Ready within ${timeoutMs}ms (phase: ${this.phase}).`,
         );
       }

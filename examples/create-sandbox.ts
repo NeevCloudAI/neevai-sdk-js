@@ -5,10 +5,10 @@
  *   NEEVCLOUD_API_KEY=... NEEVCLOUD_ORG_ID=... NEEVCLOUD_PROJECT_ID=... \
  *     npx tsx examples/create-sandbox.ts
  */
-import { NeevAI } from "@neevai/sdk";
+import { Neev } from "@neev/sdk";
 
 // Construct the client from NEEVCLOUD_* environment variables.
-const neev = new NeevAI();
+const neev = new Neev();
 
 async function main(): Promise<void> {
   // Provision a sandbox from a container image.

@@ -1,8 +1,8 @@
-// Public entry point for @neevai/sdk. Re-exports the client, resource types,
+// Public entry point for @neev/sdk. Re-exports the client, resource types,
 // the Sandbox handle, and the typed error hierarchy.
 
-export { NeevAI } from "./client.js";
-export type { NeevAIOptions, Scope } from "./client.js";
+export { Neev } from "./client.js";
+export type { NeevOptions, Scope } from "./client.js";
 
 export { RawClient } from "./http.js";
 export type { FetchLike, RawRequest } from "./http.js";
@@ -47,7 +47,7 @@ export {
   ConflictError,
   DeadlineExceededError,
   InternalServerError,
-  NeevAIError,
+  NeevError,
   NotFoundError,
   PermissionDeniedError,
   PreconditionFailedError,

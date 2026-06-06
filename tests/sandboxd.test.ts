@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DeadlineExceededError,
   InternalServerError,
-  NeevAI,
-  NeevAIError,
+  Neev,
+  NeevError,
   NotFoundError,
   PermissionDeniedError,
 } from "../src/index.js";
@@ -16,7 +16,7 @@ async function readySandbox(connectUrl: string | null, daemonQueue: Array<Respon
     json(201, sandboxData({ connect_url: connectUrl, phase: "Ready" })),
     ...daemonQueue,
   ]);
-  const neev = new NeevAI({
+  const neev = new Neev({
     apiKey: "k",
     orgId: "org_test",
     projectId: "proj_test",
@@ -291,7 +291,7 @@ describe("sandboxd", () => {
     it("throws when args are given both in the argv array and options.args", async () => {
       const { sandbox } = await readySandbox("https://sbx.sandboxes.example", []);
       await expect(sandbox.exec(["git", "status"], { args: ["-s"] })).rejects.toBeInstanceOf(
-        NeevAIError,
+        NeevError,
       );
     });
   });

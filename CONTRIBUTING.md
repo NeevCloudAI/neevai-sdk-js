@@ -1,6 +1,6 @@
-# Contributing to @neevai/sdk
+# Contributing to @neev/sdk
 
-Thanks for your interest in improving the NeevAI SDK!
+Thanks for your interest in improving the Neev SDK!
 
 ## Prerequisites
 
@@ -10,8 +10,8 @@ Thanks for your interest in improving the NeevAI SDK!
 ## Getting started
 
 ```sh
-git clone https://github.com/NeevCloudAI/neevai-sdk-js.git
-cd neevai-sdk-js
+git clone https://github.com/NeevCloudAI/neev-sdk-js.git
+cd neev-sdk-js
 pnpm install
 ```
 

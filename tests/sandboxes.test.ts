@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { NeevAI, NotFoundError, Sandbox } from "../src/index.js";
+import { Neev, NotFoundError, Sandbox } from "../src/index.js";
 import { json, mockFetch, sandboxData } from "./helpers.js";
 
 // Builds a client backed by the given queued responses.
 function client(queue: Array<Response | Error>) {
   const mock = mockFetch(queue);
   return {
-    neev: new NeevAI({
+    neev: new Neev({
       apiKey: "k",
       orgId: "org_test",
       projectId: "proj_test",
