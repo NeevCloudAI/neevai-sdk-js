@@ -130,7 +130,7 @@ const widget = await neev.raw.request<{ id: string }>({
 
 These graduate to fully-typed resource methods as specs land in the SDK.
 
-### Working inside a sandbox (files)
+### Working inside a sandbox (files & exec)
 
 Operations that act inside a running sandbox are reached directly on the sandbox handle (the sandbox must be Ready):
 
@@ -140,7 +140,11 @@ await sandbox.files.write("/work/main.py", "print('hi')"); // → { bytesWritten
 const bytes = await sandbox.files.read("/work/main.py"); // → Uint8Array
 const text = await sandbox.files.readText("/work/main.py"); // → string
 const entries = await sandbox.files.list("/work", { recursive: true }); // → FileEntry[]
+
+const result = await sandbox.exec(["python", "/work/main.py"]); // → { stdout, stderr, exitCode }
 ```
+
+`exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
 
 These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.
 

@@ -1,4 +1,4 @@
-import { type APIError, type ApiErrorBody, errorFromStatus } from "./errors.js";
+import { type APIError, type ApiErrorBody, NeevAIError, errorFromStatus } from "./errors.js";
 import type { Dispatch } from "./http.js";
 
 // Inputs needed to open a connection to a sandbox's daemon.
@@ -71,6 +71,32 @@ export interface FileEntry {
   symlinkTarget?: string;
 }
 
+// Options for running a command in the sandbox.
+export interface ExecOptions {
+  // Arguments, when the command is given as a bare program name. Ignored if
+  // `command` is already an argv array.
+  args?: string[];
+  // Working directory for the command.
+  cwd?: string;
+  // Extra environment variables, merged over the sandbox's environment.
+  env?: Record<string, string>;
+  // Wall-clock timeout in milliseconds; the server clamps to its ceiling.
+  timeoutMs?: number;
+  // Data piped to the command's standard input.
+  stdin?: string;
+  // Caller cancellation signal.
+  signal?: AbortSignal;
+}
+
+// Buffered result of a command. A non-zero exitCode is NOT an error. stdout and
+// stderr are decoded as UTF-8 text (not binary-safe); the daemon does not report
+// output truncation on this path, so output is captured in full.
+export interface ExecResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
 // A live connection to one sandbox's daemon (sandboxd), reached directly at the
 // sandbox's connect_url. Construct via NeevAI.createSandboxConnection or, more
 // commonly, access it through `sandbox.files` / `sandbox.exec`.
@@ -108,6 +134,37 @@ export class SandboxConnection {
     const response = await this.dispatch(request);
     if (!response.ok) throw await daemonError(response);
     return response;
+  }
+
+  // Runs a command in the sandbox and returns its buffered output. `command` may
+  // be a program name (with `options.args`) or a full argv array. The NDJSON
+  // response is drained to completion; a non-zero exit code is returned, not thrown.
+  async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
+    if (Array.isArray(command) && options.args && options.args.length > 0) {
+      throw new NeevAIError(
+        "exec: pass arguments either in the command array or via options.args, not both.",
+      );
+    }
+    const argv = Array.isArray(command) ? command : [command, ...(options.args ?? [])];
+    const [program, ...args] = argv;
+    const env = options.env
+      ? Object.entries(options.env).map(([key, value]) => `${key}=${value}`)
+      : undefined;
+    const response = await this.request({
+      method: "POST",
+      path: "/v1/exec",
+      headers: { "content-type": "application/json", accept: "application/x-ndjson" },
+      body: JSON.stringify({
+        command: program,
+        args,
+        cwd: options.cwd,
+        env,
+        timeout_ms: options.timeoutMs,
+        stdin: options.stdin,
+      }),
+      signal: options.signal,
+    });
+    return drainExec(response);
   }
 }
 
@@ -183,6 +240,91 @@ interface RawEntry {
   permissions: string;
   modified_time: string;
   symlink_target?: string;
+}
+
+// One NDJSON frame of an exec stream.
+interface ExecFrame {
+  type: "stdout" | "stderr" | "exit" | "error";
+  // Base64-encoded chunk for stdout/stderr frames.
+  data?: string;
+  // Process exit status, present on the terminal "exit" frame.
+  exit_code?: number;
+  // Failure detail on a terminal "error" frame.
+  reason_code?: string;
+  message?: string;
+}
+
+// sandboxd reason codes mapped to the HTTP status the SDK keys error types on.
+const REASON_STATUS: Record<string, number> = {
+  permission_denied: 403,
+  invalid_argument: 400,
+  not_found: 404,
+  failed_precondition: 412,
+  resource_exhausted: 429,
+  deadline_exceeded: 504,
+  unavailable: 503,
+  internal: 500,
+};
+
+// Drains an NDJSON exec stream to completion, accumulating stdout/stderr bytes
+// and the exit code. Bytes are collected then decoded once so a multi-byte UTF-8
+// sequence split across frames is not corrupted. A terminal "error" frame throws;
+// a stream that ends without an exit status throws (e.g. server-side timeout).
+async function drainExec(response: Response): Promise<ExecResult> {
+  const text = await response.text();
+  const stdout: Uint8Array[] = [];
+  const stderr: Uint8Array[] = [];
+  let exitCode: number | undefined;
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    const frame = JSON.parse(trimmed) as ExecFrame;
+    switch (frame.type) {
+      case "stdout":
+        if (frame.data) stdout.push(decodeBase64(frame.data));
+        break;
+      case "stderr":
+        if (frame.data) stderr.push(decodeBase64(frame.data));
+        break;
+      case "exit":
+        exitCode = frame.exit_code ?? 0;
+        break;
+      case "error":
+        throw errorFromStatus(
+          (frame.reason_code && REASON_STATUS[frame.reason_code]) || 500,
+          { error: frame.reason_code ?? "", details: frame.message },
+          undefined,
+        );
+    }
+  }
+
+  if (exitCode === undefined) {
+    throw new NeevAIError(
+      "exec stream ended without an exit status (the command may have timed out).",
+    );
+  }
+  return { stdout: decodeUtf8(stdout), stderr: decodeUtf8(stderr), exitCode };
+}
+
+// Decodes a base64 string to bytes using the runtime's global atob.
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// Concatenates byte chunks and decodes them as a single UTF-8 string.
+function decodeUtf8(chunks: Uint8Array[]): string {
+  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const buffer = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder().decode(buffer);
 }
 
 // Maps a sandboxd entry onto the SDK's camelCase FileEntry.

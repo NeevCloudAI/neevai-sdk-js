@@ -20,6 +20,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `sandbox.files.readText()` (UTF-8) read files from a running sandbox.
 - Sandbox files: `sandbox.files.list()` lists directory entries
   (`FileEntry[]`) from a running sandbox.
+- Sandbox exec: `sandbox.exec()` runs a command in a running sandbox and returns
+  buffered `{ stdout, stderr, exitCode }` (drains the `/v1/exec` NDJSON stream;
+  non-zero exit is not an error).
 
 ### Changed
 

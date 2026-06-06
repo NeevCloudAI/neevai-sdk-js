@@ -1,7 +1,7 @@
 import type { Scope } from "./client.js";
 import { NeevAIError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
-import type { SandboxConnection, SandboxFiles } from "./sandboxd.js";
+import type { ExecOptions, ExecResult, SandboxConnection, SandboxFiles } from "./sandboxd.js";
 import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
@@ -61,6 +61,12 @@ export class Sandbox {
   // connect_url yet (it must be Ready before file operations).
   get files(): SandboxFiles {
     return this.connection().files;
+  }
+
+  // Runs a command in the sandbox and returns its buffered output. Throws if the
+  // sandbox has no connect_url yet. A non-zero exit code is returned, not thrown.
+  async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
+    return this.connection().exec(command, options);
   }
 
   // Full raw sandbox record exactly as returned by the API.
