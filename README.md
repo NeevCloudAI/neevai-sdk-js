@@ -137,6 +137,8 @@ Operations that act inside a running sandbox are reached directly on the sandbox
 ```ts
 const sandbox = await neev.sandboxes.get(id);
 await sandbox.files.write("/work/main.py", "print('hi')"); // → { bytesWritten }
+const bytes = await sandbox.files.read("/work/main.py"); // → Uint8Array
+const text = await sandbox.files.readText("/work/main.py"); // → string
 ```
 
 These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.

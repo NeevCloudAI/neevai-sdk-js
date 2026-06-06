@@ -98,4 +98,35 @@ describe("sandboxd", () => {
       expect(calls[2]?.url).toContain("https://sbx.sandboxes.example/");
     });
   });
+
+  describe("files.read", () => {
+    it("posts the path and returns raw bytes", async () => {
+      const bytes = new Uint8Array([1, 2, 3, 255]);
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        new Response(bytes, { status: 200 }),
+      ]);
+      const out = await sandbox.files.read("/work/data.bin", { cwd: "/work" });
+
+      expect(Array.from(out)).toEqual([1, 2, 3, 255]);
+      const call = calls[1];
+      expect(call?.method).toBe("POST");
+      expect(call?.url).toBe("https://sbx.sandboxes.example/v1/files/read");
+      expect(call?.body).toEqual({ path: "/work/data.bin", cwd: "/work" });
+    });
+
+    it("readText decodes the bytes as UTF-8", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        new Response("héllo", { status: 200 }),
+      ]);
+      const text = await sandbox.files.readText("/work/a.txt");
+      expect(text).toBe("héllo");
+    });
+
+    it("maps a read error to a typed error", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        json(404, { reason_code: "not_found", message: "missing" }),
+      ]);
+      await expect(sandbox.files.read("/missing")).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
 });
