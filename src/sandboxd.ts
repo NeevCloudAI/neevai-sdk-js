@@ -42,6 +42,35 @@ export interface ReadFileOptions {
   signal?: AbortSignal;
 }
 
+// Options for listing a directory.
+export interface ListFilesOptions {
+  // Working directory the path is resolved against, if relative.
+  cwd?: string;
+  // Recurse into subdirectories. Defaults to false (server-side).
+  recursive?: boolean;
+  // Maximum number of entries to return.
+  maxCount?: number;
+  // Caller cancellation signal.
+  signal?: AbortSignal;
+}
+
+// A single directory entry returned by `files.list`.
+export interface FileEntry {
+  name: string;
+  type: "file" | "directory" | "symlink";
+  // Path relative to the sandbox workspace root.
+  path: string;
+  size: number;
+  // Raw Unix mode bits, including file-type bits; use `permissions` for the rwx view.
+  mode: number;
+  // 9-character rwx permission string (e.g. "rwxr-xr-x").
+  permissions: string;
+  // Last-modified timestamp (RFC3339).
+  modifiedTime: string;
+  // Target path when the entry is a symlink.
+  symlinkTarget?: string;
+}
+
 // A live connection to one sandbox's daemon (sandboxd), reached directly at the
 // sandbox's connect_url. Construct via NeevAI.createSandboxConnection or, more
 // commonly, access it through `sandbox.files` / `sandbox.exec`.
@@ -124,6 +153,50 @@ export class SandboxFiles {
   async readText(path: string, options: ReadFileOptions = {}): Promise<string> {
     return new TextDecoder().decode(await this.read(path, options));
   }
+
+  // Lists directory entries at a path in the sandbox.
+  async list(path: string, options: ListFilesOptions = {}): Promise<FileEntry[]> {
+    const response = await this.conn.request({
+      method: "POST",
+      path: "/v1/files/list",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path,
+        cwd: options.cwd,
+        recursive: options.recursive,
+        max_count: options.maxCount,
+      }),
+      signal: options.signal,
+    });
+    const body = (await response.json()) as { entries: RawEntry[] };
+    return body.entries.map(toFileEntry);
+  }
+}
+
+// The wire shape of a directory entry as emitted by sandboxd.
+interface RawEntry {
+  name: string;
+  type: "file" | "directory" | "symlink";
+  path: string;
+  size: number;
+  mode: number;
+  permissions: string;
+  modified_time: string;
+  symlink_target?: string;
+}
+
+// Maps a sandboxd entry onto the SDK's camelCase FileEntry.
+function toFileEntry(entry: RawEntry): FileEntry {
+  return {
+    name: entry.name,
+    type: entry.type,
+    path: entry.path,
+    size: entry.size,
+    mode: entry.mode,
+    permissions: entry.permissions,
+    modifiedTime: entry.modified_time,
+    symlinkTarget: entry.symlink_target,
+  };
 }
 
 // Builds a typed APIError from a sandboxd error response. The daemon's body is

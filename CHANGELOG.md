@@ -18,6 +18,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   its sandboxd daemon (reached at `connect_url`; not retried).
 - Sandbox files: `sandbox.files.read()` (raw `Uint8Array`) and
   `sandbox.files.readText()` (UTF-8) read files from a running sandbox.
+- Sandbox files: `sandbox.files.list()` lists directory entries
+  (`FileEntry[]`) from a running sandbox.
 
 ### Changed
 
