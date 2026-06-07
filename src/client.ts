@@ -5,22 +5,22 @@ import { Sandboxes } from "./resources/sandboxes.js";
 import { SandboxConnection } from "./sandboxd.js";
 
 // Per-call override of the org/project the request targets. When omitted, the
-// client-level defaults (constructor args or NEEVCLOUD_* env vars) are used.
+// client-level defaults (constructor args or NEEV_* env vars) are used.
 export interface Scope {
   orgId?: string;
   projectId?: string;
 }
 
 // Configuration accepted by the Neev constructor. Every field is optional and
-// falls back to a NEEVCLOUD_* environment variable or a built-in default.
+// falls back to a NEEV_* environment variable or a built-in default.
 export interface NeevOptions {
-  // Bearer API key. Falls back to NEEVCLOUD_API_KEY. Required.
+  // Bearer API key. Falls back to NEEV_API_KEY. Required.
   apiKey?: string;
-  // Default organization id. Falls back to NEEVCLOUD_ORG_ID.
+  // Default organization id. Falls back to NEEV_ORG_ID.
   orgId?: string;
-  // Default project id. Falls back to NEEVCLOUD_PROJECT_ID.
+  // Default project id. Falls back to NEEV_PROJECT_ID.
   projectId?: string;
-  // Base URL of the Neev API. Falls back to NEEVCLOUD_BASE_URL, then the default host.
+  // Base URL of the Neev API. Falls back to NEEV_BASE_URL, then the default host.
   baseURL?: string;
   // Per-request timeout in milliseconds. Defaults to 60000.
   timeoutMs?: number;
@@ -68,10 +68,10 @@ export class Neev implements RequestContext {
   private readonly defaultProjectId?: string;
 
   constructor(options: NeevOptions = {}) {
-    const apiKey = options.apiKey ?? readEnv("NEEVCLOUD_API_KEY");
+    const apiKey = options.apiKey ?? readEnv("NEEV_API_KEY");
     if (!apiKey) {
       throw new NeevError(
-        "Missing API key. Pass `apiKey` or set the NEEVCLOUD_API_KEY environment variable.",
+        "Missing API key. Pass `apiKey` or set the NEEV_API_KEY environment variable.",
       );
     }
 
@@ -83,9 +83,9 @@ export class Neev implements RequestContext {
     }
 
     this.apiKey = apiKey;
-    this.baseUrl = options.baseURL ?? readEnv("NEEVCLOUD_BASE_URL") ?? DEFAULT_BASE_URL;
-    this.defaultOrgId = options.orgId ?? readEnv("NEEVCLOUD_ORG_ID");
-    this.defaultProjectId = options.projectId ?? readEnv("NEEVCLOUD_PROJECT_ID");
+    this.baseUrl = options.baseURL ?? readEnv("NEEV_BASE_URL") ?? DEFAULT_BASE_URL;
+    this.defaultOrgId = options.orgId ?? readEnv("NEEV_ORG_ID");
+    this.defaultProjectId = options.projectId ?? readEnv("NEEV_PROJECT_ID");
     const boundFetch = baseFetch.bind(globalThis);
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.dispatch = createDispatch({
@@ -127,13 +127,11 @@ export class Neev implements RequestContext {
     const orgId = scope?.orgId ?? this.defaultOrgId;
     const projectId = scope?.projectId ?? this.defaultProjectId;
     if (!orgId) {
-      throw new NeevError(
-        "Missing orgId. Set it on the client, via NEEVCLOUD_ORG_ID, or per call.",
-      );
+      throw new NeevError("Missing orgId. Set it on the client, via NEEV_ORG_ID, or per call.");
     }
     if (!projectId) {
       throw new NeevError(
-        "Missing projectId. Set it on the client, via NEEVCLOUD_PROJECT_ID, or per call.",
+        "Missing projectId. Set it on the client, via NEEV_PROJECT_ID, or per call.",
       );
     }
     return { orgId, projectId };

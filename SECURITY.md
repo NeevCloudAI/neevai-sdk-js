@@ -28,4 +28,4 @@ window for prior majors.
 
 `@neev/sdk` is a server-side SDK. Never embed a Neev API key in client-side
 or browser code, and never commit keys to version control. Use environment
-variables (`NEEVCLOUD_API_KEY`) or a secrets manager.
+variables (`NEEV_API_KEY`) or a secrets manager.

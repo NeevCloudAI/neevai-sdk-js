@@ -2,12 +2,12 @@
  * Create a sandbox, wait for it to become Ready, read its metrics, then clean up.
  *
  * Run with:
- *   NEEVCLOUD_API_KEY=... NEEVCLOUD_ORG_ID=... NEEVCLOUD_PROJECT_ID=... \
+ *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/create-sandbox.ts
  */
 import { Neev } from "@neev/sdk";
 
-// Construct the client from NEEVCLOUD_* environment variables.
+// Construct the client from NEEV_* environment variables.
 const neev = new Neev();
 
 async function main(): Promise<void> {
