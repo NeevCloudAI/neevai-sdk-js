@@ -26,13 +26,13 @@ Requires a server-side JS runtime with global `fetch`: **Node 18+**, **Bun**, **
 
 ## Authentication
 
-The client reads configuration from explicit options or `NEEVCLOUD_*` environment variables:
+The client reads configuration from explicit options or `NEEV_*` environment variables:
 
 | Option      | Env var                 | Required | Default |
 | ----------- | ----------------------- | -------- | ------- |
-| `apiKey`    | `NEEVCLOUD_API_KEY`     | yes      | —       |
-| `orgId`     | `NEEVCLOUD_ORG_ID`      | yes\*    | —       |
-| `projectId` | `NEEVCLOUD_PROJECT_ID`  | yes\*    | —       |
+| `apiKey`    | `NEEV_API_KEY`          | yes      | —       |
+| `orgId`     | `NEEV_ORG_ID`           | yes\*    | —       |
+| `projectId` | `NEEV_PROJECT_ID`       | yes\*    | —       |
 
 \* `orgId` / `projectId` may be set on the client or overridden per call.
 
@@ -42,9 +42,9 @@ The client reads configuration from explicit options or `NEEVCLOUD_*` environmen
 import { Neev } from "@neev/sdk";
 
 const neev = new Neev({
-  apiKey: process.env.NEEVCLOUD_API_KEY,
-  orgId: process.env.NEEVCLOUD_ORG_ID,
-  projectId: process.env.NEEVCLOUD_PROJECT_ID,
+  apiKey: process.env.NEEV_API_KEY,
+  orgId: process.env.NEEV_ORG_ID,
+  projectId: process.env.NEEV_PROJECT_ID,
 });
 
 // Create a sandbox and wait for it to come up.
