@@ -2,11 +2,11 @@
 
 ## Reporting a vulnerability
 
-If you discover a security vulnerability in `@neevai/sdk`, please report it
+If you discover a security vulnerability in `@neev/sdk`, please report it
 privately. **Do not open a public GitHub issue for security reports.**
 
 - Email **security@neevcloud.com** with details, or
-- Use GitHub's [private vulnerability reporting](https://github.com/NeevCloudAI/neevai-sdk-js/security/advisories/new) for this repository.
+- Use GitHub's [private vulnerability reporting](https://github.com/NeevCloudAI/neev-sdk-js/security/advisories/new) for this repository.
 
 Please include:
 
@@ -26,6 +26,6 @@ window for prior majors.
 
 ## Handling credentials
 
-`@neevai/sdk` is a server-side SDK. Never embed a NeevAI API key in client-side
+`@neev/sdk` is a server-side SDK. Never embed a Neev API key in client-side
 or browser code, and never commit keys to version control. Use environment
 variables (`NEEVCLOUD_API_KEY`) or a secrets manager.

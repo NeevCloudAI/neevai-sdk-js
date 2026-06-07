@@ -1,4 +1,4 @@
-import { type APIError, type ApiErrorBody, NeevAIError, errorFromStatus } from "./errors.js";
+import { type APIError, type ApiErrorBody, NeevError, errorFromStatus } from "./errors.js";
 import type { Dispatch } from "./http.js";
 
 // Inputs needed to open a connection to a sandbox's daemon.
@@ -98,7 +98,7 @@ export interface ExecResult {
 }
 
 // A live connection to one sandbox's daemon (sandboxd), reached directly at the
-// sandbox's connect_url. Construct via NeevAI.createSandboxConnection or, more
+// sandbox's connect_url. Construct via Neev.createSandboxConnection or, more
 // commonly, access it through `sandbox.files` / `sandbox.exec`.
 export class SandboxConnection {
   private readonly base: string;
@@ -141,7 +141,7 @@ export class SandboxConnection {
   // response is drained to completion; a non-zero exit code is returned, not thrown.
   async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
     if (Array.isArray(command) && options.args && options.args.length > 0) {
-      throw new NeevAIError(
+      throw new NeevError(
         "exec: pass arguments either in the command array or via options.args, not both.",
       );
     }
@@ -300,7 +300,7 @@ async function drainExec(response: Response): Promise<ExecResult> {
   }
 
   if (exitCode === undefined) {
-    throw new NeevAIError(
+    throw new NeevError(
       "exec stream ended without an exit status (the command may have timed out).",
     );
   }

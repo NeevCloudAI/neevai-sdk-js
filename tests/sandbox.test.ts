@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { type FetchLike, NeevAI, NeevAIError } from "../src/index.js";
+import { type FetchLike, Neev, NeevError } from "../src/index.js";
 import { json, mockFetch, sandboxData } from "./helpers.js";
 
 // Builds a client backed by the given queued responses.
 function client(queue: Array<Response | Error>) {
   const mock = mockFetch(queue);
-  return new NeevAI({
+  return new Neev({
     apiKey: "k",
     orgId: "org_test",
     projectId: "proj_test",
@@ -18,7 +18,7 @@ function client(queue: Array<Response | Error>) {
 // exhausts a finite queue.
 function alwaysPhaseClient(phase: string) {
   const fetch: FetchLike = async () => json(200, sandboxData({ phase: phase as never }));
-  return new NeevAI({
+  return new Neev({
     apiKey: "k",
     orgId: "org_test",
     projectId: "proj_test",
@@ -63,7 +63,7 @@ describe("Sandbox handle", () => {
     const neev = alwaysPhaseClient("Pending");
     const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
     await expect(sb.waitUntilReady({ pollIntervalMs: 1, timeoutMs: 10 })).rejects.toThrow(
-      NeevAIError,
+      NeevError,
     );
   });
 

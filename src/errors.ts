@@ -1,4 +1,4 @@
-// Typed error hierarchy for the SDK. Every failure surfaces as a NeevAIError
+// Typed error hierarchy for the SDK. Every failure surfaces as a NeevError
 // subclass so callers can branch on `instanceof` rather than parsing strings.
 
 // Shape of the JSON error body returned by the API (components.schemas.ErrorResponse).
@@ -8,7 +8,7 @@ export interface ApiErrorBody {
 }
 
 // Base class for every error thrown by the SDK.
-export class NeevAIError extends Error {
+export class NeevError extends Error {
   constructor(message: string) {
     super(message);
     this.name = new.target.name;
@@ -17,7 +17,7 @@ export class NeevAIError extends Error {
 
 // Raised when a request never produced an HTTP response — DNS failure, connection
 // reset, or a client-side timeout/abort.
-export class APIConnectionError extends NeevAIError {
+export class APIConnectionError extends NeevError {
   // The underlying cause (e.g. the fetch TypeError or AbortError), when available.
   override readonly cause?: unknown;
 
@@ -31,7 +31,7 @@ export class APIConnectionError extends NeevAIError {
 export class APITimeoutError extends APIConnectionError {}
 
 // Raised for any non-2xx HTTP response. Subclasses pin specific status codes.
-export class APIError extends NeevAIError {
+export class APIError extends NeevError {
   // HTTP status code of the response.
   readonly status: number;
   // Stable error code from the API body (`error` field), when present.

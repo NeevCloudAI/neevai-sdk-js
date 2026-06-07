@@ -4,7 +4,7 @@ import {
   APIConnectionError,
   APITimeoutError,
   BadRequestError,
-  type NeevAIError,
+  type NeevError,
   NotFoundError,
   RateLimitError,
 } from "../src/index.js";
@@ -147,7 +147,7 @@ describe("RawClient (spec-less escape hatch)", () => {
     const { raw } = rawClient([
       json(404, { error: "not_found", details: "no widget" }, { "x-request-id": "req-9" }),
     ]);
-    const err: NeevAIError = await raw
+    const err: NeevError = await raw
       .request({ method: "GET", path: "/v1/widgets/1" })
       .catch((e) => e);
     expect(err).toBeInstanceOf(NotFoundError);

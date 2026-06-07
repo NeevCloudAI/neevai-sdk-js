@@ -1,8 +1,8 @@
-# @neevai/sdk
+# @neev/sdk
 
-> Official NeevCloud SDK for the NeevAI platform — Node, Bun, Deno & edge.
+> Official NeevCloud SDK for the Neev platform — Node, Bun, Deno & edge.
 
-`@neevai/sdk` is the single, growing TypeScript client for the **NeevAI platform**.
+`@neev/sdk` is the single, growing TypeScript client for the **Neev platform**.
 One package, one auth model, one client — adopt new capabilities as they ship.
 
 **Available today**
@@ -18,8 +18,8 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 ## Install
 
 ```sh
-npm install @neevai/sdk
-# or: pnpm add @neevai/sdk · yarn add @neevai/sdk · bun add @neevai/sdk
+npm install @neev/sdk
+# or: pnpm add @neev/sdk · yarn add @neev/sdk · bun add @neev/sdk
 ```
 
 Requires a server-side JS runtime with global `fetch`: **Node 18+**, **Bun**, **Deno**, or an edge runtime. There is no browser build — your API key must never ship to a browser.
@@ -39,9 +39,9 @@ The client reads configuration from explicit options or `NEEVCLOUD_*` environmen
 ## Quickstart
 
 ```ts
-import { NeevAI } from "@neevai/sdk";
+import { Neev } from "@neev/sdk";
 
-const neev = new NeevAI({
+const neev = new Neev({
   apiKey: process.env.NEEVCLOUD_API_KEY,
   orgId: process.env.NEEVCLOUD_ORG_ID,
   projectId: process.env.NEEVCLOUD_PROJECT_ID,
@@ -99,10 +99,10 @@ await neev.sandboxes.list({ orgId: "other-org", projectId: "other-proj" });
 
 ### Error handling
 
-Every failure is a typed `NeevAIError` subclass:
+Every failure is a typed `NeevError` subclass:
 
 ```ts
-import { NotFoundError, RateLimitError, APIError } from "@neevai/sdk";
+import { NotFoundError, RateLimitError, APIError } from "@neev/sdk";
 
 try {
   await neev.sandboxes.get("missing");

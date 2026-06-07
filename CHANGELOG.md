@@ -8,10 +8,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Initial SDK scaffold: `NeevAI` client with env/option config resolution.
+- Initial SDK scaffold: `Neev` client with env/option config resolution.
 - `neev.sandboxes` resource — `create`, `list`, `get`, `pause`, `resume`, `delete`, `metrics`.
 - `Sandbox` handle with `refresh`, `pause`, `resume`, `delete`, `metrics`, and `waitUntilReady`.
-- Typed error hierarchy (`NeevAIError` and HTTP-status subclasses).
+- Typed error hierarchy (`NeevError` and HTTP-status subclasses).
 - HTTP transport with timeout and exponential-backoff retries on network errors, `429`, and `5xx`.
 - Generated TypeScript types from the AI Agent Service OpenAPI spec.
 - Sandbox files: `sandbox.files.write()` writes files to a running sandbox via
@@ -32,4 +32,4 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `pnpm gen` now generates per-service types (`specs/<service>.yaml` →
   `src/generated/<service>.ts`) so specs can be migrated one at a time.
 
-[Unreleased]: https://github.com/NeevCloudAI/neevai-sdk-js/commits/main
+[Unreleased]: https://github.com/NeevCloudAI/neev-sdk-js/commits/main

@@ -70,7 +70,7 @@ export function createDispatch(opts: DispatchOptions): Dispatch {
         if (isAbortError(failure)) {
           throw new APITimeoutError("Request timed out", failure);
         }
-        throw new APIConnectionError("Request failed to reach the NeevAI API", failure);
+        throw new APIConnectionError("Request failed to reach the Neev API", failure);
       }
 
       const ok = response as Response;

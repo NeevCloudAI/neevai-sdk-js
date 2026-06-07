@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with @neevai/sdk
+description: Report a problem with @neev/sdk
 labels: [bug]
 body:
   - type: markdown
@@ -25,7 +25,7 @@ body:
     id: sdk-version
     attributes:
       label: SDK version
-      placeholder: "@neevai/sdk@0.1.0"
+      placeholder: "@neev/sdk@0.1.0"
     validations:
       required: true
   - type: input
