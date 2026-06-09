@@ -36,10 +36,14 @@ async function main(): Promise<void> {
 
   const agent = createReactAgent({
     // NeevCloud gpt-oss-120b over the OpenAI-compatible inference endpoint.
+    // A per-request timeout (with one retry) keeps a slow/stalled completion
+    // from hanging the run forever.
     llm: new ChatOpenAI({
       model: NEEV_MODEL,
       temperature: 0,
       apiKey: neevInferenceApiKey(),
+      timeout: 90_000,
+      maxRetries: 1,
       configuration: { baseURL: NEEV_INFERENCE_BASE_URL },
     }),
     tools: [runShell],
