@@ -56,5 +56,8 @@ describe("templates resource", () => {
     const { neev, calls } = client([json(200, { items: [], total: 0, page: 1, limit: 20 })]);
     await neev.templates.list();
     expect(calls[0]?.url).not.toContain("/orgs/");
+    // Param-less list must not serialize undefined page/limit into the query.
+    expect(calls[0]?.url).not.toContain("page=");
+    expect(calls[0]?.url).not.toContain("limit=");
   });
 });

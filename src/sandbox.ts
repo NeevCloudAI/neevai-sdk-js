@@ -34,6 +34,9 @@ export class Sandbox {
   // connection is reused across calls but rebuilt if the URL changes.
   private conn?: SandboxConnection;
   private connUrl?: string;
+  // In-flight connection resolution, shared so concurrent first calls trigger a
+  // single readiness wait rather than one poll loop each.
+  private connecting?: Promise<SandboxConnection>;
   // Cached files facade; its connection is resolved lazily on first use.
   private filesProxy?: SandboxFiles;
 
@@ -142,13 +145,25 @@ export class Sandbox {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
   }
 
-  // Resolves the daemon connection for this sandbox, caching it by connect_url.
-  // When connect_url is not yet known (a freshly-created Pending sandbox), waits
-  // until the sandbox is Ready to obtain one. The cached connection is rebuilt if
-  // the connect_url changes (e.g. across a resume). Throws if the sandbox is Ready
-  // but still exposes no connect_url.
-  private async ensureConnection(): Promise<SandboxConnection> {
-    if (!this.state.connect_url) {
+  // Resolves the daemon connection for this sandbox, coalescing concurrent first
+  // calls into one readiness wait. Subsequent calls re-resolve cheaply (the
+  // sandbox is Ready and the connection is cached).
+  private ensureConnection(): Promise<SandboxConnection> {
+    if (!this.connecting) {
+      this.connecting = this.resolveConnection().finally(() => {
+        this.connecting = undefined;
+      });
+    }
+    return this.connecting;
+  }
+
+  // Caches the daemon connection by connect_url. Waits until the sandbox is Ready
+  // when it has no usable endpoint yet (a freshly-created or just-resumed sandbox
+  // reports no connect_url, or a stale non-Ready phase). The cached connection is
+  // rebuilt if the connect_url changes (e.g. across a resume). Throws if the
+  // sandbox is Ready but still exposes no connect_url.
+  private async resolveConnection(): Promise<SandboxConnection> {
+    if (!this.state.connect_url || this.phase !== "Ready") {
       await this.waitUntilReady();
     }
     const connectUrl = this.state.connect_url;

@@ -56,6 +56,8 @@ describe("sandboxd", () => {
       // Kick off a file write while still Pending; it should poll until Ready,
       // then issue the daemon call against the resolved connect_url.
       const write = sandbox.files.write("/a", "abc");
+      // Advance one poll interval (DEFAULT_POLL_INTERVAL_MS) so the single
+      // waitUntilReady poll fires its refresh and observes the Ready phase.
       await vi.advanceTimersByTimeAsync(2000);
       const result = await write;
 
@@ -90,6 +92,42 @@ describe("sandboxd", () => {
 
     expect(mock.calls[1]?.url).toContain("https://a.example/");
     expect(mock.calls[3]?.url).toContain("https://b.example/");
+  });
+
+  it("exec also waits until Ready to obtain connect_url on first use", async () => {
+    vi.useFakeTimers();
+    try {
+      // Minimal NDJSON exec stream: a single terminal exit frame.
+      const exit = new Response(`${JSON.stringify({ type: "exit", exit_code: 0 })}\n`, {
+        status: 200,
+      });
+      const mock = mockFetch([
+        json(201, sandboxData({ phase: "Pending", connect_url: null })),
+        json(200, sandboxData({ phase: "Ready", connect_url: "https://sbx.sandboxes.example" })),
+        exit,
+      ]);
+      const neev = new Neev({
+        apiKey: "k",
+        orgId: "org_test",
+        projectId: "proj_test",
+        fetch: mock.fetch,
+      });
+      const sandbox = await neev.sandboxes.create({
+        name: "demo",
+        sandbox_template_id: "sb-ubuntu-26-04-minimal",
+      });
+      const run = sandbox.exec(["true"]);
+      // Advance one poll interval (DEFAULT_POLL_INTERVAL_MS) to let the readiness
+      // poll observe Ready, then the exec hits the resolved connect_url.
+      await vi.advanceTimersByTimeAsync(2000);
+      const result = await run;
+
+      expect(result.exitCode).toBe(0);
+      expect(mock.calls).toHaveLength(3);
+      expect(mock.calls[2]?.url).toBe("https://sbx.sandboxes.example/v1/exec");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   describe("files.write", () => {
