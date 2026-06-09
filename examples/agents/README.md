@@ -82,9 +82,9 @@ loop simply waits and retries on its own.
 
 - **Lifecycle** — `sandboxes.create` from a catalogue template; automatic
   cleanup with `sandbox.delete()`.
-- **Runtime** — `sandbox.files.write` to stage code and `sandbox.exec` to run
-  it, with output buffered back to the agent. The handle resolves the sandbox's
-  `connect_url` and waits for Ready on first use, so the tool code stays a
-  single `write` + `exec`.
+- **Runtime** — `sandbox.exec` runs the agent's shell commands with output
+  buffered back to it; `sandbox.files.write` (used by the executor's `runPython`)
+  stages files on python-capable templates. The handle resolves the sandbox's
+  `connect_url` and waits for Ready on first use.
 - **Isolation** — every agent's generated code runs in a gVisor (`runsc`)
   sandbox, not on the host.

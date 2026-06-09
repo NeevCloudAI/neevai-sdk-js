@@ -3,8 +3,8 @@
  *
  * Genkit is Google's agentic framework for JS/TS. This example points Genkit at
  * NeevCloud `gpt-oss-120b` via the OpenAI-compatible inference endpoint (using
- * the `@genkit-ai/compat-oai` plugin) and exposes `run_python` / `run_shell`
- * tools backed by a Neev sandbox.
+ * the `@genkit-ai/compat-oai` plugin) and exposes a `run_shell` tool backed by
+ * a Neev sandbox.
  *
  * Install (peer deps for this example):
  *   npm install @neev/sdk genkit @genkit-ai/compat-oai
@@ -34,17 +34,7 @@ async function main(): Promise<void> {
   });
   const executor = new SandboxCodeExecutor();
 
-  // Expose the sandbox as Gemini-style callable tools.
-  const runPython = ai.defineTool(
-    {
-      name: "run_python",
-      description: "Execute Python 3 code in a secure Neev sandbox and return its output.",
-      inputSchema: z.object({ code: z.string().describe("Python 3 source to execute") }),
-      outputSchema: z.string(),
-    },
-    async ({ code }) => formatRunResult(await executor.runPython(code)),
-  );
-
+  // Expose the sandbox's shell as a Genkit callable tool.
   const runShell = ai.defineTool(
     {
       name: "run_shell",
@@ -62,7 +52,7 @@ async function main(): Promise<void> {
       prompt:
         "Use the sandbox to compute the SHA-256 hex digest of the exact string " +
         "'neev' (no trailing newline), then report only the 64-character digest.",
-      tools: [runPython, runShell],
+      tools: [runShell],
     });
     console.log(text);
   } finally {

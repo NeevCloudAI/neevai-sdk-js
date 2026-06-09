@@ -1,9 +1,9 @@
 /**
  * Vercel AI SDK agent with a Neev sandbox as its code-execution tool.
  *
- * `generateText` runs a multi-step tool-calling loop: the model writes code,
- * the `runPython` / `runShell` tools execute it in a gVisor-isolated Neev
- * sandbox, and the model uses the output to finish the task. The model is
+ * `generateText` runs a multi-step tool-calling loop: the model issues shell
+ * commands via the `runShell` tool, which executes them in a gVisor-isolated
+ * Neev sandbox, and the model uses the output to finish the task. The model is
  * NeevCloud `gpt-oss-120b` over the OpenAI-compatible Neev inference endpoint.
  *
  * Install (peer deps for this example):
@@ -38,11 +38,7 @@ async function main(): Promise<void> {
       // Allow several tool-call rounds so the model can run code then read output.
       maxSteps: 6,
       tools: {
-        runPython: tool({
-          description: "Execute Python 3 code in a secure Neev sandbox and return its output.",
-          parameters: z.object({ code: z.string().describe("Python 3 source to execute") }),
-          execute: async ({ code }) => formatRunResult(await executor.runPython(code)),
-        }),
+        // The sandbox's shell, exposed as the code-execution tool.
         runShell: tool({
           description: "Run a shell command in the Neev sandbox and return its output.",
           parameters: z.object({ command: z.string().describe("Shell command to run") }),

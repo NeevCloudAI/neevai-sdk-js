@@ -1,9 +1,9 @@
 /**
  * LangChain.js agent with a Neev sandbox as its code-execution tool.
  *
- * The agent reasons over a task, calls the `run_python` / `run_shell` tools to
- * execute code in a gVisor-isolated Neev sandbox, and uses the captured output
- * to produce its answer. The model is NeevCloud `gpt-oss-120b`, served over the
+ * The agent reasons over a task, calls a `run_shell` tool to execute commands
+ * in a gVisor-isolated Neev sandbox, and uses the captured output to produce its
+ * answer. The model is NeevCloud `gpt-oss-120b`, served over the
  * OpenAI-compatible Neev inference endpoint.
  *
  * Install (peer deps for this example):
@@ -26,14 +26,8 @@ import { SandboxCodeExecutor, formatRunResult } from "./sandbox-tool.js";
 async function main(): Promise<void> {
   const executor = new SandboxCodeExecutor();
 
-  // Tool 1: run Python in the sandbox (needs a python-capable template).
-  const runPython = tool(async ({ code }) => formatRunResult(await executor.runPython(code)), {
-    name: "run_python",
-    description: "Execute Python 3 code in a secure Neev sandbox and return its output.",
-    schema: z.object({ code: z.string().describe("Python 3 source to execute") }),
-  });
-
-  // Tool 2: run a shell command in the same sandbox.
+  // The sandbox's shell, exposed as the agent's code-execution tool. `sh` is
+  // present on every catalogue template.
   const runShell = tool(async ({ command }) => formatRunResult(await executor.runShell(command)), {
     name: "run_shell",
     description: "Run a shell command in the Neev sandbox and return its output.",
@@ -48,7 +42,7 @@ async function main(): Promise<void> {
       apiKey: neevInferenceApiKey(),
       configuration: { baseURL: NEEV_INFERENCE_BASE_URL },
     }),
-    tools: [runPython, runShell],
+    tools: [runShell],
   });
 
   console.error(
