@@ -52,16 +52,23 @@ async function main(): Promise<void> {
   });
 
   try {
-    const result = await agent.invoke({
-      messages: [
-        {
-          role: "user",
-          content:
-            "Use the sandbox to compute the SHA-256 hex digest of the exact string " +
-            "'neev' (no trailing newline), then report only the 64-character digest.",
-        },
-      ],
-    });
+    const result = await agent.invoke(
+      {
+        messages: [
+          {
+            role: "user",
+            content:
+              "Use the sandbox to compute the SHA-256 hex digest of the exact string " +
+              "'neev' (no trailing newline), then report only the 64-character digest.",
+          },
+        ],
+      },
+      // A freshly-created sandbox's data-plane hostname takes a few seconds to
+      // resolve after it reports Ready, so the first tool calls may fail while
+      // the agent waits for it to come up. Raise the step budget above the
+      // default 25 so the agent can wait that out instead of erroring.
+      { recursionLimit: 100 },
+    );
     const final = result.messages.at(-1);
     console.log(final?.content);
   } finally {
