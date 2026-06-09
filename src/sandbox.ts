@@ -1,8 +1,14 @@
 import type { Scope } from "./client.js";
 import { NeevError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
-import type { ExecOptions, ExecResult, SandboxConnection, SandboxFiles } from "./sandboxd.js";
-import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
+import { SandboxFiles } from "./sandboxd.js";
+import type { ExecOptions, ExecResult, ExecStreamEvent, SandboxConnection } from "./sandboxd.js";
+import type {
+  SandboxData,
+  SandboxMetricsResponse,
+  SandboxPhase,
+  SandboxResources,
+} from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
 export interface WaitOptions {
@@ -24,7 +30,15 @@ export class Sandbox {
   private readonly sandboxes: Sandboxes;
   private readonly scope?: Scope;
   private state: SandboxData;
+  // Cached daemon connection and the connect_url it was built for, so the
+  // connection is reused across calls but rebuilt if the URL changes.
   private conn?: SandboxConnection;
+  private connUrl?: string;
+  // In-flight connection resolution, shared so concurrent first calls trigger a
+  // single readiness wait rather than one poll loop each.
+  private connecting?: Promise<SandboxConnection>;
+  // Cached files facade; its connection is resolved lazily on first use.
+  private filesProxy?: SandboxFiles;
 
   constructor(sandboxes: Sandboxes, data: SandboxData, scope?: Scope) {
     this.sandboxes = sandboxes;
@@ -57,16 +71,48 @@ export class Sandbox {
     return this.state.connect_url ?? null;
   }
 
-  // Filesystem operations on this sandbox's daemon. Throws if the sandbox has no
-  // connect_url yet (it must be Ready before file operations).
-  get files(): SandboxFiles {
-    return this.connection().files;
+  // Region slug the sandbox runs in.
+  get region(): string {
+    return this.state.region;
   }
 
-  // Runs a command in the sandbox and returns its buffered output. Throws if the
-  // sandbox has no connect_url yet. A non-zero exit code is returned, not thrown.
+  // Catalogue template id the sandbox was created from, or null when unknown.
+  get templateId(): string | null {
+    return this.state.sandbox_template_id ?? null;
+  }
+
+  // Compute size the sandbox was provisioned with, or undefined when defaulted.
+  get resources(): SandboxResources | undefined {
+    return this.state.resources;
+  }
+
+  // Filesystem operations on this sandbox's daemon. Each operation resolves the
+  // connection lazily: if the sandbox has no connect_url yet, the first call
+  // waits until it is Ready to obtain one.
+  get files(): SandboxFiles {
+    if (!this.filesProxy) {
+      this.filesProxy = new SandboxFiles(() => this.ensureConnection());
+    }
+    return this.filesProxy;
+  }
+
+  // Runs a command in the sandbox and returns its buffered output. If the sandbox
+  // has no connect_url yet, waits until it is Ready first. A non-zero exit code is
+  // returned, not thrown.
   async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
-    return this.connection().exec(command, options);
+    const conn = await this.ensureConnection();
+    return conn.exec(command, options);
+  }
+
+  // Runs a command and yields its output as it arrives (stdout/stderr text chunks
+  // then a terminal exit event). Like `exec`, waits for the sandbox to be Ready on
+  // first use. A non-zero exit is reported via the exit event, not thrown.
+  async *execStream(
+    command: string | string[],
+    options: ExecOptions = {},
+  ): AsyncGenerator<ExecStreamEvent> {
+    const conn = await this.ensureConnection();
+    yield* conn.execStream(command, options);
   }
 
   // Full raw sandbox record exactly as returned by the API.
@@ -110,17 +156,36 @@ export class Sandbox {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
   }
 
-  // Lazily opens (and caches) the daemon connection for this sandbox. Throws if
-  // connect_url is not yet available.
-  private connection(): SandboxConnection {
-    if (!this.conn) {
-      const connectUrl = this.state.connect_url;
-      if (!connectUrl) {
-        throw new NeevError(
-          `Sandbox ${this.id} has no connect_url yet; it must be Ready before file or exec operations.`,
-        );
-      }
+  // Resolves the daemon connection for this sandbox, coalescing concurrent first
+  // calls into one readiness wait. Subsequent calls re-resolve cheaply (the
+  // sandbox is Ready and the connection is cached).
+  private ensureConnection(): Promise<SandboxConnection> {
+    if (!this.connecting) {
+      this.connecting = this.resolveConnection().finally(() => {
+        this.connecting = undefined;
+      });
+    }
+    return this.connecting;
+  }
+
+  // Caches the daemon connection by connect_url. Waits until the sandbox is Ready
+  // when it has no usable endpoint yet (a freshly-created or just-resumed sandbox
+  // reports no connect_url, or a stale non-Ready phase). The cached connection is
+  // rebuilt if the connect_url changes (e.g. across a resume). Throws if the
+  // sandbox is Ready but still exposes no connect_url.
+  private async resolveConnection(): Promise<SandboxConnection> {
+    if (!this.state.connect_url || this.phase !== "Ready") {
+      await this.waitUntilReady();
+    }
+    const connectUrl = this.state.connect_url;
+    if (!connectUrl) {
+      throw new NeevError(
+        `Sandbox ${this.id} is Ready but has no connect_url; runtime operations are unavailable.`,
+      );
+    }
+    if (!this.conn || this.connUrl !== connectUrl) {
       this.conn = this.sandboxes.connect(connectUrl);
+      this.connUrl = connectUrl;
     }
     return this.conn;
   }

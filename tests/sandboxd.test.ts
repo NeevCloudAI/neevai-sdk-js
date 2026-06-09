@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DeadlineExceededError,
   InternalServerError,
@@ -22,14 +22,112 @@ async function readySandbox(connectUrl: string | null, daemonQueue: Array<Respon
     projectId: "proj_test",
     fetch: mock.fetch,
   });
-  const sandbox = await neev.sandboxes.create({ name: "demo", image: "img" });
+  const sandbox = await neev.sandboxes.create({
+    name: "demo",
+    sandbox_template_id: "sb-ubuntu-26-04-minimal",
+  });
   return { sandbox, calls: mock.calls };
 }
 
 describe("sandboxd", () => {
-  it("throws when the sandbox has no connect_url yet", async () => {
+  it("throws when a Ready sandbox exposes no connect_url", async () => {
     const { sandbox } = await readySandbox(null, []);
-    expect(() => sandbox.files).toThrow(/connect_url/);
+    await expect(sandbox.files.write("/a", "x")).rejects.toThrow(/connect_url/);
+  });
+
+  it("waits until Ready to obtain connect_url on first runtime use", async () => {
+    vi.useFakeTimers();
+    try {
+      const mock = mockFetch([
+        json(201, sandboxData({ phase: "Pending", connect_url: null })),
+        json(200, sandboxData({ phase: "Ready", connect_url: "https://sbx.sandboxes.example" })),
+        json(200, { bytes_written: 3 }),
+      ]);
+      const neev = new Neev({
+        apiKey: "k",
+        orgId: "org_test",
+        projectId: "proj_test",
+        fetch: mock.fetch,
+      });
+      const sandbox = await neev.sandboxes.create({
+        name: "demo",
+        sandbox_template_id: "sb-ubuntu-26-04-minimal",
+      });
+      // Kick off a file write while still Pending; it should poll until Ready,
+      // then issue the daemon call against the resolved connect_url.
+      const write = sandbox.files.write("/a", "abc");
+      // Advance one poll interval (DEFAULT_POLL_INTERVAL_MS) so the single
+      // waitUntilReady poll fires its refresh and observes the Ready phase.
+      await vi.advanceTimersByTimeAsync(2000);
+      const result = await write;
+
+      expect(result.bytesWritten).toBe(3);
+      expect(mock.calls).toHaveLength(3);
+      expect(mock.calls[2]?.url).toBe("https://sbx.sandboxes.example/v1/files/write?path=%2Fa");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rebuilds the daemon connection when connect_url changes", async () => {
+    const mock = mockFetch([
+      json(201, sandboxData({ phase: "Ready", connect_url: "https://a.example" })),
+      json(200, { bytes_written: 1 }),
+      json(200, sandboxData({ phase: "Ready", connect_url: "https://b.example" })),
+      json(200, { bytes_written: 1 }),
+    ]);
+    const neev = new Neev({
+      apiKey: "k",
+      orgId: "org_test",
+      projectId: "proj_test",
+      fetch: mock.fetch,
+    });
+    const sandbox = await neev.sandboxes.create({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
+    await sandbox.files.write("/a", "x");
+    await sandbox.resume();
+    await sandbox.files.write("/b", "y");
+
+    expect(mock.calls[1]?.url).toContain("https://a.example/");
+    expect(mock.calls[3]?.url).toContain("https://b.example/");
+  });
+
+  it("exec also waits until Ready to obtain connect_url on first use", async () => {
+    vi.useFakeTimers();
+    try {
+      // Minimal NDJSON exec stream: a single terminal exit frame.
+      const exit = new Response(`${JSON.stringify({ type: "exit", exit_code: 0 })}\n`, {
+        status: 200,
+      });
+      const mock = mockFetch([
+        json(201, sandboxData({ phase: "Pending", connect_url: null })),
+        json(200, sandboxData({ phase: "Ready", connect_url: "https://sbx.sandboxes.example" })),
+        exit,
+      ]);
+      const neev = new Neev({
+        apiKey: "k",
+        orgId: "org_test",
+        projectId: "proj_test",
+        fetch: mock.fetch,
+      });
+      const sandbox = await neev.sandboxes.create({
+        name: "demo",
+        sandbox_template_id: "sb-ubuntu-26-04-minimal",
+      });
+      const run = sandbox.exec(["true"]);
+      // Advance one poll interval (DEFAULT_POLL_INTERVAL_MS) to let the readiness
+      // poll observe Ready, then the exec hits the resolved connect_url.
+      await vi.advanceTimersByTimeAsync(2000);
+      const result = await run;
+
+      expect(result.exitCode).toBe(0);
+      expect(mock.calls).toHaveLength(3);
+      expect(mock.calls[2]?.url).toBe("https://sbx.sandboxes.example/v1/exec");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   describe("files.write", () => {
@@ -293,6 +391,54 @@ describe("sandboxd", () => {
       await expect(sandbox.exec(["git", "status"], { args: ["-s"] })).rejects.toBeInstanceOf(
         NeevError,
       );
+    });
+
+    it("execStream yields incremental stdout/stderr/exit events", async () => {
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa("hello ") },
+          { type: "stdout", data: btoa("world") },
+          { type: "stderr", data: btoa("warn") },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const events = [];
+      for await (const ev of sandbox.execStream("echo", { args: ["hi"] })) events.push(ev);
+      expect(events).toEqual([
+        { type: "stdout", data: "hello " },
+        { type: "stdout", data: "world" },
+        { type: "stderr", data: "warn" },
+        { type: "exit", exitCode: 0 },
+      ]);
+      expect(calls[1]?.url).toBe("https://sbx.sandboxes.example/v1/exec");
+    });
+
+    it("execStream decodes a multi-byte char split across frames", async () => {
+      // "é" is 0xC3 0xA9; deliver each byte in its own stdout frame.
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa(String.fromCharCode(0xc3)) },
+          { type: "stdout", data: btoa(String.fromCharCode(0xa9)) },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const out = [];
+      for await (const ev of sandbox.execStream("printf")) {
+        if (ev.type === "stdout") out.push(ev.data);
+      }
+      expect(out.join("")).toBe("é");
+    });
+
+    it("execStream throws a typed error on a terminal error frame", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "error", reason_code: "permission_denied", message: "denied" }]),
+      ]);
+      const drain = async () => {
+        const seen = [];
+        for await (const ev of sandbox.execStream("whoami")) seen.push(ev);
+        return seen;
+      };
+      await expect(drain()).rejects.toBeInstanceOf(PermissionDeniedError);
     });
   });
 });

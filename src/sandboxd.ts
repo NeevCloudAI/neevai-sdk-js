@@ -97,6 +97,13 @@ export interface ExecResult {
   exitCode: number;
 }
 
+// One event from a streaming exec: `stdout`/`stderr` carry a decoded text chunk
+// as it arrives, and the terminal `exit` event carries the process exit code.
+export type ExecStreamEvent =
+  | { type: "stdout"; data: string }
+  | { type: "stderr"; data: string }
+  | { type: "exit"; exitCode: number };
+
 // A live connection to one sandbox's daemon (sandboxd), reached directly at the
 // sandbox's connect_url. Construct via Neev.createSandboxConnection or, more
 // commonly, access it through `sandbox.files` / `sandbox.exec`.
@@ -137,9 +144,28 @@ export class SandboxConnection {
   }
 
   // Runs a command in the sandbox and returns its buffered output. `command` may
-  // be a program name (with `options.args`) or a full argv array. The NDJSON
-  // response is drained to completion; a non-zero exit code is returned, not thrown.
+  // be a program name (with `options.args`) or a full argv array. A non-zero exit
+  // code is returned, not thrown. Built on `execStream`.
   async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
+    let stdout = "";
+    let stderr = "";
+    let exitCode = 0;
+    for await (const event of this.execStream(command, options)) {
+      if (event.type === "stdout") stdout += event.data;
+      else if (event.type === "stderr") stderr += event.data;
+      else exitCode = event.exitCode;
+    }
+    return { stdout, stderr, exitCode };
+  }
+
+  // Runs a command and yields its output as it arrives: `stdout`/`stderr` events
+  // carry decoded text chunks and a terminal `exit` event carries the exit code.
+  // A non-zero exit is reported via the exit event, not thrown; a daemon error
+  // frame throws a typed APIError, and a stream that ends without an exit throws.
+  async *execStream(
+    command: string | string[],
+    options: ExecOptions = {},
+  ): AsyncGenerator<ExecStreamEvent> {
     if (Array.isArray(command) && options.args && options.args.length > 0) {
       throw new NeevError(
         "exec: pass arguments either in the command array or via options.args, not both.",
@@ -164,16 +190,23 @@ export class SandboxConnection {
       }),
       signal: options.signal,
     });
-    return drainExec(response);
+    yield* streamExec(response);
   }
 }
 
+// Resolves the daemon connection for a file operation. The Sandbox handle
+// supplies an async resolver that waits until the sandbox is Ready and caches
+// the connection; a concrete SandboxConnection is wrapped as an already-resolved
+// provider. Resolving per call lets `sandbox.files` stay a synchronous getter
+// while the underlying connect_url may only arrive once the sandbox is Ready.
+export type ConnectionResolver = () => Promise<SandboxConnection>;
+
 // Filesystem operations exposed by sandboxd. Reached via `sandbox.files`.
 export class SandboxFiles {
-  private readonly conn: SandboxConnection;
+  private readonly resolve: ConnectionResolver;
 
-  constructor(conn: SandboxConnection) {
-    this.conn = conn;
+  constructor(conn: SandboxConnection | ConnectionResolver) {
+    this.resolve = typeof conn === "function" ? conn : () => Promise.resolve(conn);
   }
 
   // Writes content to a path in the sandbox, returning the number of bytes written.
@@ -182,7 +215,8 @@ export class SandboxFiles {
     content: string | Uint8Array,
     options: WriteFileOptions = {},
   ): Promise<WriteFileResult> {
-    const response = await this.conn.request({
+    const conn = await this.resolve();
+    const response = await conn.request({
       method: "POST",
       path: "/v1/files/write",
       query: { path, cwd: options.cwd },
@@ -196,7 +230,8 @@ export class SandboxFiles {
 
   // Reads a file from the sandbox and returns its raw bytes (binary-safe).
   async read(path: string, options: ReadFileOptions = {}): Promise<Uint8Array> {
-    const response = await this.conn.request({
+    const conn = await this.resolve();
+    const response = await conn.request({
       method: "POST",
       path: "/v1/files/read",
       headers: { "content-type": "application/json", accept: "application/octet-stream" },
@@ -213,7 +248,8 @@ export class SandboxFiles {
 
   // Lists directory entries at a path in the sandbox.
   async list(path: string, options: ListFilesOptions = {}): Promise<FileEntry[]> {
-    const response = await this.conn.request({
+    const conn = await this.resolve();
+    const response = await conn.request({
       method: "POST",
       path: "/v1/files/list",
       headers: { "content-type": "application/json" },
@@ -266,30 +302,43 @@ const REASON_STATUS: Record<string, number> = {
   internal: 500,
 };
 
-// Drains an NDJSON exec stream to completion, accumulating stdout/stderr bytes
-// and the exit code. Bytes are collected then decoded once so a multi-byte UTF-8
-// sequence split across frames is not corrupted. A terminal "error" frame throws;
-// a stream that ends without an exit status throws (e.g. server-side timeout).
-async function drainExec(response: Response): Promise<ExecResult> {
-  const text = await response.text();
-  const stdout: Uint8Array[] = [];
-  const stderr: Uint8Array[] = [];
-  let exitCode: number | undefined;
+// Parses an NDJSON exec stream incrementally, yielding decoded output chunks as
+// they arrive and a terminal exit event. Per-channel streaming TextDecoders keep
+// a multi-byte UTF-8 sequence split across frames intact. A terminal "error"
+// frame throws a typed APIError; a stream that ends without an exit status throws.
+async function* streamExec(response: Response): AsyncGenerator<ExecStreamEvent> {
+  const outDecoder = new TextDecoder();
+  const errDecoder = new TextDecoder();
+  let sawExit = false;
 
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
-    const frame = JSON.parse(trimmed) as ExecFrame;
+  // Turns one parsed frame into zero or more events; flips sawExit on the exit
+  // frame and throws on an error frame.
+  function* handle(frame: ExecFrame): Generator<ExecStreamEvent> {
     switch (frame.type) {
-      case "stdout":
-        if (frame.data) stdout.push(decodeBase64(frame.data));
+      case "stdout": {
+        if (frame.data) {
+          const text = outDecoder.decode(decodeBase64(frame.data), { stream: true });
+          if (text) yield { type: "stdout", data: text };
+        }
         break;
-      case "stderr":
-        if (frame.data) stderr.push(decodeBase64(frame.data));
+      }
+      case "stderr": {
+        if (frame.data) {
+          const text = errDecoder.decode(decodeBase64(frame.data), { stream: true });
+          if (text) yield { type: "stderr", data: text };
+        }
         break;
-      case "exit":
-        exitCode = frame.exit_code ?? 0;
+      }
+      case "exit": {
+        // Flush any bytes the streaming decoders are still holding.
+        const restOut = outDecoder.decode();
+        if (restOut) yield { type: "stdout", data: restOut };
+        const restErr = errDecoder.decode();
+        if (restErr) yield { type: "stderr", data: restErr };
+        sawExit = true;
+        yield { type: "exit", exitCode: frame.exit_code ?? 0 };
         break;
+      }
       case "error":
         throw errorFromStatus(
           (frame.reason_code && REASON_STATUS[frame.reason_code]) || 500,
@@ -299,12 +348,43 @@ async function drainExec(response: Response): Promise<ExecResult> {
     }
   }
 
-  if (exitCode === undefined) {
+  const lineDecoder = new TextDecoder();
+  let buffer = "";
+
+  if (response.body) {
+    // Read the body as it arrives, parsing complete NDJSON lines incrementally.
+    const reader = response.body.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (value) buffer += lineDecoder.decode(value, { stream: true });
+        let newline = buffer.indexOf("\n");
+        while (newline !== -1) {
+          const line = buffer.slice(0, newline).trim();
+          buffer = buffer.slice(newline + 1);
+          if (line) yield* handle(JSON.parse(line) as ExecFrame);
+          newline = buffer.indexOf("\n");
+        }
+        if (done) break;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const tail = (buffer + lineDecoder.decode()).trim();
+    if (tail) yield* handle(JSON.parse(tail) as ExecFrame);
+  } else {
+    // Fallback when the runtime exposes no streaming body: parse the full text.
+    for (const line of (await response.text()).split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed) yield* handle(JSON.parse(trimmed) as ExecFrame);
+    }
+  }
+
+  if (!sawExit) {
     throw new NeevError(
       "exec stream ended without an exit status (the command may have timed out).",
     );
   }
-  return { stdout: decodeUtf8(stdout), stderr: decodeUtf8(stderr), exitCode };
 }
 
 // Decodes a base64 string to bytes using the runtime's global atob.
@@ -313,18 +393,6 @@ function decodeBase64(value: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
-}
-
-// Concatenates byte chunks and decodes them as a single UTF-8 string.
-function decodeUtf8(chunks: Uint8Array[]): string {
-  const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const buffer = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return new TextDecoder().decode(buffer);
 }
 
 // Maps a sandboxd entry onto the SDK's camelCase FileEntry.

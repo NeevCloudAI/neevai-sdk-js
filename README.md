@@ -8,6 +8,7 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 **Available today**
 
 - **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, and live metrics. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
+- **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is required when creating a sandbox.
 
 **Coming next**
 
@@ -33,8 +34,11 @@ The client reads configuration from explicit options or `NEEV_*` environment var
 | `apiKey`    | `NEEV_API_KEY`          | yes      | —       |
 | `orgId`     | `NEEV_ORG_ID`           | yes\*    | —       |
 | `projectId` | `NEEV_PROJECT_ID`       | yes\*    | —       |
+| `baseURL`   | `NEEV_BASE_URL`         | no       | production API |
 
 \* `orgId` / `projectId` may be set on the client or overridden per call.
+
+`baseURL` defaults to the Neev production API; set `NEEV_BASE_URL` only to target another environment.
 
 ## Quickstart
 
@@ -47,10 +51,11 @@ const neev = new Neev({
   projectId: process.env.NEEV_PROJECT_ID,
 });
 
-// Create a sandbox and wait for it to come up.
+// Create a sandbox from a template and wait for it to come up.
 const sandbox = await neev.sandboxes.create({
   name: "my-agent",
-  image: "ghcr.io/neevcloud/sandbox-python:3.12",
+  sandbox_template_id: "sb-ubuntu-26-04-minimal",
+  region: "as-south-1", // production region
 });
 await sandbox.waitUntilReady();
 
@@ -75,6 +80,23 @@ await neev.sandboxes.pause(id);
 await neev.sandboxes.resume(id);
 await neev.sandboxes.delete(id);
 const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
+```
+
+### Sandbox templates
+
+Create requires a `sandbox_template_id`. Pass a known id directly, or browse the catalogue to discover one:
+
+```ts
+// Create directly from a known template id.
+const sandbox = await neev.sandboxes.create({
+  name: "my-agent",
+  sandbox_template_id: "sb-ubuntu-26-04-minimal",
+  region: "as-south-1", // production region
+});
+
+// Or discover what's available first.
+const { items } = await neev.templates.list();
+const template = await neev.templates.get("sb-ubuntu-26-04-minimal"); // inspect one
 ```
 
 ### Sandbox handles
@@ -132,19 +154,31 @@ These graduate to fully-typed resource methods as specs land in the SDK.
 
 ### Working inside a sandbox (files & exec)
 
-Operations that act inside a running sandbox are reached directly on the sandbox handle (the sandbox must be Ready):
+Operations that act inside a running sandbox are reached directly on the sandbox handle. The handle resolves the sandbox's `connect_url` (returned by `create`/`get`/`list`) on first use and caches it; if the sandbox isn't Ready yet, the first `files`/`exec` call waits until it is:
+
+File paths are workspace-relative (the daemon rejects absolute paths):
 
 ```ts
 const sandbox = await neev.sandboxes.get(id);
-await sandbox.files.write("/work/main.py", "print('hi')"); // → { bytesWritten }
-const bytes = await sandbox.files.read("/work/main.py"); // → Uint8Array
-const text = await sandbox.files.readText("/work/main.py"); // → string
-const entries = await sandbox.files.list("/work", { recursive: true }); // → FileEntry[]
+await sandbox.files.write("main.py", "print('hi')"); // → { bytesWritten }
+const bytes = await sandbox.files.read("main.py"); // → Uint8Array
+const text = await sandbox.files.readText("main.py"); // → string
+const entries = await sandbox.files.list(".", { recursive: true }); // → FileEntry[]
 
-const result = await sandbox.exec(["python", "/work/main.py"]); // → { stdout, stderr, exitCode }
+const result = await sandbox.exec(["sh", "-c", "python3 main.py"]); // → { stdout, stderr, exitCode }
 ```
 
 `exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
+
+To consume output **as it is produced** (long-running commands, live logs), use `execStream` — an async generator that yields `stdout`/`stderr` text chunks the moment the daemon flushes them, then a terminal `exit` event:
+
+```ts
+for await (const event of sandbox.execStream(["sh", "-c", "for i in 1 2 3; do echo $i; sleep 1; done"])) {
+  if (event.type === "stdout") process.stdout.write(event.data);
+  else if (event.type === "stderr") process.stderr.write(event.data);
+  else console.log("exit", event.exitCode); // non-zero is reported here, not thrown
+}
+```
 
 These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.
 

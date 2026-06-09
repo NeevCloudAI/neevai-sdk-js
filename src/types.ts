@@ -9,8 +9,19 @@ export type SandboxData = components["schemas"]["Sandbox"];
 // Lifecycle phase reported by the service.
 export type SandboxPhase = components["schemas"]["SandboxPhase"];
 
-// Request body accepted by `sandboxes.create`.
+// Request body accepted by `sandboxes.create`. Requires `sandbox_template_id`;
+// the server resolves the image and default command from the chosen template.
 export type CreateSandboxParams = components["schemas"]["CreateSandboxRequest"];
+
+// Compute size (cpu / memory_gb / disk_gb) for a sandbox. Omitted fields use the
+// platform default.
+export type SandboxResources = components["schemas"]["SandboxResources"];
+
+// Network egress policy for a sandbox (mode plus optional allow rules).
+export type SandboxEgressConfig = components["schemas"]["SandboxEgressConfig"];
+
+// A single egress allow rule (host plus optional ports/protocol).
+export type SandboxEgressRule = components["schemas"]["SandboxEgressRule"];
 
 // A single environment variable passed to a sandbox.
 export type EnvVar = components["schemas"]["EnvVar"];
@@ -23,3 +34,16 @@ export type SandboxMetricsResponse = components["schemas"]["SandboxMetricsRespon
 
 // One named time series within a metrics response.
 export type MetricSeries = components["schemas"]["MetricSeries"];
+
+// A platform-managed sandbox runtime template, referenced as
+// `sandbox_template_id` at create time.
+export type SandboxTemplate = components["schemas"]["SandboxTemplate"];
+
+// Catalogue category of a sandbox template ("standard" | "browser").
+export type SandboxTemplateCategory = components["schemas"]["SandboxTemplateCategory"];
+
+// Lifecycle status of a sandbox template ("active" | "deprecated" | "disabled").
+export type SandboxTemplateStatus = components["schemas"]["SandboxTemplateStatus"];
+
+// Paginated list payload returned by `templates.list`.
+export type SandboxTemplateListResponse = components["schemas"]["SandboxTemplateListResponse"];

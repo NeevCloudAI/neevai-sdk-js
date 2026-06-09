@@ -17,7 +17,7 @@ describe("Neev client", () => {
       fetch,
     });
     await client.sandboxes.delete("sb");
-    expect(calls[0]?.url).toContain("https://agent.ai.neevcloud.com");
+    expect(calls[0]?.url).toContain("https://api.ai.neevcloud.com/agent/api/v1beta1");
   });
 
   it("honors an explicit baseURL override", async () => {

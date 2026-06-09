@@ -14,6 +14,7 @@ export { SandboxConnection, SandboxFiles } from "./sandboxd.js";
 export type {
   ExecOptions,
   ExecResult,
+  ExecStreamEvent,
   FileEntry,
   ListFilesOptions,
   ReadFileOptions,
@@ -29,13 +30,25 @@ export type {
 } from "./resources/sandboxes.js";
 
 export type {
+  ListTemplatesParams,
+  SandboxTemplatePage,
+} from "./resources/templates.js";
+
+export type {
   CreateSandboxParams,
   EnvVar,
   MetricSeries,
   SandboxData,
+  SandboxEgressConfig,
+  SandboxEgressRule,
   SandboxListResponse,
   SandboxMetricsResponse,
   SandboxPhase,
+  SandboxResources,
+  SandboxTemplate,
+  SandboxTemplateCategory,
+  SandboxTemplateListResponse,
+  SandboxTemplateStatus,
 } from "./types.js";
 
 export {
