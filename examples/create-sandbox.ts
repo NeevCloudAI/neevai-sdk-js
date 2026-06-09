@@ -11,12 +11,18 @@ import { Neev } from "@neev/sdk";
 const neev = new Neev();
 
 async function main(): Promise<void> {
-  // Provision a sandbox from a container image.
+  // Pick a runtime template from the platform catalogue. Create resolves the
+  // image and default command from the chosen template.
+  const templates = await neev.templates.list();
+  const template = templates.items.find((t) => t.status === "active") ?? templates.items[0];
+  if (!template) throw new Error("no sandbox templates available");
+
+  // Provision a sandbox from the selected template.
   const sandbox = await neev.sandboxes.create({
     name: "example-agent",
-    image: "ghcr.io/neevcloud/sandbox-python:3.12",
+    sandbox_template_id: template.id,
   });
-  console.log(`created ${sandbox.id} (phase: ${sandbox.phase})`);
+  console.log(`created ${sandbox.id} from ${template.id} (phase: ${sandbox.phase})`);
 
   // Block until the control plane reports the sandbox as Ready.
   await sandbox.waitUntilReady();

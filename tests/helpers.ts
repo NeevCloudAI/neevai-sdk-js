@@ -1,5 +1,5 @@
 import type { FetchLike } from "../src/http.js";
-import type { SandboxData } from "../src/types.js";
+import type { SandboxData, SandboxTemplate } from "../src/types.js";
 
 // A single recorded fetch call, for asserting method/url/headers/body in tests.
 export interface RecordedCall {
@@ -81,11 +81,25 @@ export function sandboxData(overrides: Partial<SandboxData> = {}): SandboxData {
     org_id: "org_test",
     project_id: "proj_test",
     name: "test-sandbox",
-    namespace: "ns-test",
     region: "as-south-1",
     image: "ghcr.io/neevcloud/sandbox-python:3.12",
+    sandbox_template_id: "sb-ubuntu-26-04-minimal",
     phase: "Pending",
     replicas: 1,
+    created_at: "2026-06-05T00:00:00Z",
+    updated_at: "2026-06-05T00:00:00Z",
+    ...overrides,
+  };
+}
+
+// Builds a SandboxTemplate record with sensible defaults, overridable per field.
+export function templateData(overrides: Partial<SandboxTemplate> = {}): SandboxTemplate {
+  return {
+    id: "sb-ubuntu-26-04-minimal",
+    name: "Ubuntu 26.04 Minimal",
+    description: "Minimal Ubuntu 26.04 sandbox runtime.",
+    category: "standard",
+    status: "active",
     created_at: "2026-06-05T00:00:00Z",
     updated_at: "2026-06-05T00:00:00Z",
     ...overrides,

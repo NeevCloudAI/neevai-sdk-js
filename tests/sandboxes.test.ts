@@ -18,17 +18,21 @@ function client(queue: Array<Response | Error>) {
 }
 
 describe("sandboxes resource", () => {
-  it("creates a sandbox and returns a handle", async () => {
+  it("creates a sandbox from a template and returns a handle", async () => {
     const { neev, calls } = client([json(201, sandboxData({ name: "demo" }))]);
     const sb = await neev.sandboxes.create({
       name: "demo",
-      image: "img:latest",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
     });
     expect(sb).toBeInstanceOf(Sandbox);
     expect(sb.name).toBe("demo");
+    expect(sb.templateId).toBe("sb-ubuntu-26-04-minimal");
     expect(calls[0]?.method).toBe("POST");
     expect(calls[0]?.url).toContain("/api/v1beta1/orgs/org_test/projects/proj_test/sandboxes");
-    expect(calls[0]?.body).toEqual({ name: "demo", image: "img:latest" });
+    expect(calls[0]?.body).toEqual({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
   });
 
   it("lists sandboxes with pagination and wraps items as handles", async () => {
@@ -91,5 +95,29 @@ describe("sandboxes resource", () => {
     const { neev, calls } = client([json(200, sandboxData())]);
     await neev.sandboxes.get("sb-1", { orgId: "other_org", projectId: "other_proj" });
     expect(calls[0]?.url).toContain("/orgs/other_org/projects/other_proj/");
+  });
+
+  it("exposes region, template id, and resources on the handle", async () => {
+    const { neev } = client([
+      json(
+        200,
+        sandboxData({
+          region: "dev",
+          sandbox_template_id: "sb-ubuntu-26-04-minimal",
+          resources: { cpu: 2, memory_gb: 4, disk_gb: 20 },
+        }),
+      ),
+    ]);
+    const sb = await neev.sandboxes.get("sb-1");
+    expect(sb.region).toBe("dev");
+    expect(sb.templateId).toBe("sb-ubuntu-26-04-minimal");
+    expect(sb.resources).toEqual({ cpu: 2, memory_gb: 4, disk_gb: 20 });
+  });
+
+  it("reports null template id when the server omits it", async () => {
+    const { neev } = client([json(200, sandboxData({ sandbox_template_id: null }))]);
+    const sb = await neev.sandboxes.get("sb-1");
+    expect(sb.templateId).toBeNull();
+    expect(sb.resources).toBeUndefined();
   });
 });

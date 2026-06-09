@@ -2,7 +2,12 @@ import type { Scope } from "./client.js";
 import { NeevError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
 import type { ExecOptions, ExecResult, SandboxConnection, SandboxFiles } from "./sandboxd.js";
-import type { SandboxData, SandboxMetricsResponse, SandboxPhase } from "./types.js";
+import type {
+  SandboxData,
+  SandboxMetricsResponse,
+  SandboxPhase,
+  SandboxResources,
+} from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
 export interface WaitOptions {
@@ -55,6 +60,21 @@ export class Sandbox {
   // Direct address of the sandbox daemon, or null when not configured.
   get connectUrl(): string | null {
     return this.state.connect_url ?? null;
+  }
+
+  // Region slug the sandbox runs in.
+  get region(): string {
+    return this.state.region;
+  }
+
+  // Catalogue template id the sandbox was created from, or null when unknown.
+  get templateId(): string | null {
+    return this.state.sandbox_template_id ?? null;
+  }
+
+  // Compute size the sandbox was provisioned with, or undefined when defaulted.
+  get resources(): SandboxResources | undefined {
+    return this.state.resources;
   }
 
   // Filesystem operations on this sandbox's daemon. Throws if the sandbox has no

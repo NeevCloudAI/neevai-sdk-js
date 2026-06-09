@@ -22,7 +22,10 @@ async function readySandbox(connectUrl: string | null, daemonQueue: Array<Respon
     projectId: "proj_test",
     fetch: mock.fetch,
   });
-  const sandbox = await neev.sandboxes.create({ name: "demo", image: "img" });
+  const sandbox = await neev.sandboxes.create({
+    name: "demo",
+    sandbox_template_id: "sb-ubuntu-26-04-minimal",
+  });
   return { sandbox, calls: mock.calls };
 }
 

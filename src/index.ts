@@ -29,13 +29,25 @@ export type {
 } from "./resources/sandboxes.js";
 
 export type {
+  ListTemplatesParams,
+  SandboxTemplatePage,
+} from "./resources/templates.js";
+
+export type {
   CreateSandboxParams,
   EnvVar,
   MetricSeries,
   SandboxData,
+  SandboxEgressConfig,
+  SandboxEgressRule,
   SandboxListResponse,
   SandboxMetricsResponse,
   SandboxPhase,
+  SandboxResources,
+  SandboxTemplate,
+  SandboxTemplateCategory,
+  SandboxTemplateListResponse,
+  SandboxTemplateStatus,
 } from "./types.js";
 
 export {

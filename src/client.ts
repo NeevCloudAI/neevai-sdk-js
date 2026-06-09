@@ -2,6 +2,7 @@ import createClient, { type Client } from "openapi-fetch";
 import { NeevError } from "./errors.js";
 import { type Dispatch, type FetchLike, RawClient, createDispatch } from "./http.js";
 import { Sandboxes } from "./resources/sandboxes.js";
+import { SandboxTemplates } from "./resources/templates.js";
 import { SandboxConnection } from "./sandboxd.js";
 
 // Per-call override of the org/project the request targets. When omitted, the
@@ -59,6 +60,8 @@ export class Neev implements RequestContext {
   readonly raw: RawClient;
   // Sandbox lifecycle operations.
   readonly sandboxes: Sandboxes;
+  // Read-only sandbox-template catalogue (template ids for `sandboxes.create`).
+  readonly templates: SandboxTemplates;
 
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -99,6 +102,7 @@ export class Neev implements RequestContext {
 
     this.raw = new RawClient({ baseUrl: this.baseUrl, apiKey, dispatch: this.dispatch });
     this.sandboxes = new Sandboxes(this);
+    this.templates = new SandboxTemplates(this);
   }
 
   // Opens a connection to a sandbox daemon at its connect_url, backed by this

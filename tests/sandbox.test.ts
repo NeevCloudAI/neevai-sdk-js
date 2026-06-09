@@ -30,10 +30,13 @@ function alwaysPhaseClient(phase: string) {
 describe("Sandbox handle", () => {
   it("exposes core fields and the raw record", async () => {
     const neev = client([json(201, sandboxData({ connect_url: "https://sb.sandboxes.example" }))]);
-    const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
+    const sb = await neev.sandboxes.create({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
     expect(sb.id).toBe("11111111-1111-1111-1111-111111111111");
     expect(sb.connectUrl).toBe("https://sb.sandboxes.example");
-    expect(sb.data.namespace).toBe("ns-test");
+    expect(sb.data.region).toBe("as-south-1");
     expect(JSON.parse(JSON.stringify(sb)).org_id).toBe("org_test");
   });
 
@@ -42,7 +45,10 @@ describe("Sandbox handle", () => {
       json(201, sandboxData({ phase: "Ready", replicas: 1 })),
       json(200, sandboxData({ phase: "Paused", replicas: 0 })),
     ]);
-    const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
+    const sb = await neev.sandboxes.create({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
     expect(sb.phase).toBe("Ready");
     await sb.pause();
     expect(sb.phase).toBe("Paused");
@@ -54,14 +60,20 @@ describe("Sandbox handle", () => {
       json(201, sandboxData({ phase: "Pending" })),
       json(200, sandboxData({ phase: "Ready" })),
     ]);
-    const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
+    const sb = await neev.sandboxes.create({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
     const ready = await sb.waitUntilReady({ pollIntervalMs: 1, timeoutMs: 1000 });
     expect(ready.phase).toBe("Ready");
   });
 
   it("waitUntilReady throws when the timeout elapses", async () => {
     const neev = alwaysPhaseClient("Pending");
-    const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
+    const sb = await neev.sandboxes.create({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
     await expect(sb.waitUntilReady({ pollIntervalMs: 1, timeoutMs: 10 })).rejects.toThrow(
       NeevError,
     );
@@ -69,7 +81,10 @@ describe("Sandbox handle", () => {
 
   it("waitUntilReady fails fast when the sandbox is Paused", async () => {
     const neev = client([json(201, sandboxData({ phase: "Paused", replicas: 0 }))]);
-    const sb = await neev.sandboxes.create({ name: "demo", image: "img" });
+    const sb = await neev.sandboxes.create({
+      name: "demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+    });
     await expect(sb.waitUntilReady()).rejects.toThrow(/Paused/);
   });
 });

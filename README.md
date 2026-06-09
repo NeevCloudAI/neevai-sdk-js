@@ -8,6 +8,7 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 **Available today**
 
 - **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, and live metrics. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
+- **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is required when creating a sandbox.
 
 **Coming next**
 
@@ -47,10 +48,10 @@ const neev = new Neev({
   projectId: process.env.NEEV_PROJECT_ID,
 });
 
-// Create a sandbox and wait for it to come up.
+// Create a sandbox from a template and wait for it to come up.
 const sandbox = await neev.sandboxes.create({
   name: "my-agent",
-  image: "ghcr.io/neevcloud/sandbox-python:3.12",
+  sandbox_template_id: "sb-ubuntu-26-04-minimal",
 });
 await sandbox.waitUntilReady();
 
@@ -75,6 +76,20 @@ await neev.sandboxes.pause(id);
 await neev.sandboxes.resume(id);
 await neev.sandboxes.delete(id);
 const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
+```
+
+### Sandbox templates
+
+Create requires a `sandbox_template_id`. Discover the available templates from the platform catalogue:
+
+```ts
+const templates = await neev.templates.list();
+const template = await neev.templates.get("sb-ubuntu-26-04-minimal");
+
+const sandbox = await neev.sandboxes.create({
+  name: "my-agent",
+  sandbox_template_id: template.id,
+});
 ```
 
 ### Sandbox handles

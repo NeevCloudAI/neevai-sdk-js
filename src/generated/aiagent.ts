@@ -33,7 +33,7 @@ export interface paths {
         get: operations["getSandbox"];
         put?: never;
         post?: never;
-        /** Delete a sandbox (removes the Kubernetes CR and the DB row) */
+        /** Delete a sandbox */
         delete: operations["deleteSandbox"];
         options?: never;
         head?: never;
@@ -49,7 +49,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pause a sandbox (scale to 0 replicas) */
+        /** Pause a sandbox (stop billable runtime; preserve disks) */
         post: operations["pauseSandbox"];
         delete?: never;
         options?: never;
@@ -66,7 +66,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a paused sandbox (scale to 1 replica) */
+        /** Resume a paused sandbox */
         post: operations["resumeSandbox"];
         delete?: never;
         options?: never;
@@ -83,20 +83,55 @@ export interface paths {
         };
         /**
          * Read live health metrics for a sandbox
-         * @description Returns the bounded, tenant-scoped metric set for a single sandbox
-         *     (CPU / memory / disk plus lifecycle/rate series) by querying the
-         *     CP-resident SigNoz store — see `docs/rfc/rfc_metrics.md`.
-         *
-         *     `org_id` / `project_id` / `sandbox_id` are taken from the path and
-         *     injected server-side as the SigNoz label filter; a caller can never
-         *     widen the query to a sandbox their org/project does not own.
-         *
-         *     `from` / `to` / `step` are optional and default to the last hour at a
-         *     default step — the live-health common case is a paramless GET. The
-         *     full v1 metric set is always returned (the catalogue is small and
-         *     bounded), so there is no metric selector.
+         * @description Returns the bounded metric set for one sandbox (CPU / memory / disk
+         *     plus lifecycle and rate series). `from` / `to` / `step` are optional
+         *     and default to the last hour; the full v1 metric set is always
+         *     returned (no metric selector).
          */
         get: operations["getSandboxMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1beta1/sandbox-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sandbox templates
+         * @description Returns platform-managed sandbox runtime templates available for
+         *     sandbox create. Only templates with status `active` or `deprecated`
+         *     are returned. Registry paths are operator-internal and are not exposed.
+         */
+        get: operations["listSandboxTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1beta1/sandbox-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a sandbox template
+         * @description Returns one platform-managed sandbox template by id (e.g.
+         *     `sb-ubuntu-26-04-minimal`). Use the template `name` at sandbox create.
+         */
+        get: operations["getSandboxTemplate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -119,48 +154,135 @@ export interface components {
         };
         /** @enum {string} */
         SandboxPhase: "Pending" | "Ready" | "NotReady" | "Unknown" | "Paused";
+        /** @description Sandbox compute size. Omitted fields use the platform default. */
+        SandboxResources: {
+            /**
+             * @description vCPUs. Multiples of 0.5, from 0.5 to 8.
+             * @example 1
+             */
+            cpu?: number;
+            /**
+             * @description Memory in GB, from 1 to 16.
+             * @example 2
+             */
+            memory_gb?: number;
+            /**
+             * @description Ephemeral disk in GB. Multiples of 10, from 10 to 100.
+             * @example 10
+             */
+            disk_gb?: number;
+        };
         Sandbox: {
             /** Format: uuid */
             id: string;
             org_id: string;
             project_id: string;
             name: string;
-            /** @description Kubernetes namespace where the Sandbox CR lives */
-            namespace: string;
             /**
-             * @description Region slug of the DP cluster hosting the sandbox
+             * @description Region where the sandbox runs.
              * @example dev
              */
             region: string;
             image: string;
             command?: string[];
             env?: components["schemas"]["EnvVar"][];
+            resources?: components["schemas"]["SandboxResources"];
             phase: components["schemas"]["SandboxPhase"];
-            fqdn?: string | null;
-            /** @description Regional sandbox data-plane address the SDK reaches directly (API key + X-Sandbox-Id). Hostname form https://<sandbox-id>.sandboxes.<domain>. null when not configured. */
+            /** @description Public URL the SDK calls (API key + X-Sandbox-Id). null when not configured. */
             connect_url?: string | null;
+            /** @description 0 = paused, 1 = running. */
             replicas: number;
-            k8s_uid?: string | null;
+            egress?: components["schemas"]["SandboxEgressConfig"] | null;
+            /** @description Catalogue template id from create when one was provided; null otherwise. */
+            sandbox_template_id?: string | null;
+            /** @description Identity that created the sandbox (user id, or API key id for key-authenticated calls); null for sandboxes created before this was recorded. */
+            created_by?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
         };
         CreateSandboxRequest: {
-            name: string;
-            /** @description Optional override for the Kubernetes namespace */
-            namespace?: string;
             /**
-             * @description Region slug of the DP cluster to provision on; omit to use the platform's default region
+             * @description Sandbox name. Used verbatim as the Sandbox CR name and as a routing
+             *     label, so it must be a valid DNS-1123 label: lowercase alphanumeric
+             *     characters or '-', starting and ending with an alphanumeric, max 63
+             *     characters.
+             * @example my-sandbox
+             */
+            name: string;
+            /**
+             * @description Region to provision in; omit to use the platform default.
              * @example dev
              */
             region?: string;
-            image: string;
+            /**
+             * @description Ignored when sandbox_template_id is set. Reserved for future BYOI;
+             *     the server resolves the container image from the selected template.
+             */
+            image?: string;
+            /**
+             * @description Ignored when sandbox_template_id is set. The server uses the
+             *     catalogue template default command.
+             */
             command?: string[];
             env?: components["schemas"]["EnvVar"][];
+            resources?: components["schemas"]["SandboxResources"];
+            egress?: components["schemas"]["SandboxEgressConfig"];
+            /**
+             * @description Catalogue template id (e.g. sb-ubuntu-26-04-minimal). The server
+             *     validates the template exists and is active, then provisions the
+             *     sandbox image and command from that template.
+             */
+            sandbox_template_id: string;
+        };
+        /** @description Network egress configuration rules for the sandbox. */
+        SandboxEgressConfig: {
+            /**
+             * @description The egress mode. deny_all blocks all egress. allow_list restricts egress to the specified allowed destinations.
+             * @default deny_all
+             * @enum {string}
+             */
+            mode: "deny_all" | "allow_list";
+            /**
+             * @description Escape hatch: if true, allows 0.0.0.0/0 (the entire internet). Strictly audit-logged.
+             * @default false
+             */
+            allow_internet: boolean;
+            /** @description List of egress rules for host/IP destinations to allow. */
+            allow?: components["schemas"]["SandboxEgressRule"][];
+        };
+        /** @description Individual egress rule specifying allowed destination host. */
+        SandboxEgressRule: {
+            /** @description IP address, CIDR block, or domain name */
+            host: string;
+            ports?: number[];
+            /** @enum {string} */
+            protocol?: "TCP" | "UDP";
         };
         SandboxListResponse: {
             items: components["schemas"]["Sandbox"][];
+            total: number;
+            page: number;
+            limit: number;
+        };
+        /** @enum {string} */
+        SandboxTemplateCategory: "standard" | "browser";
+        /** @enum {string} */
+        SandboxTemplateStatus: "active" | "deprecated" | "disabled";
+        SandboxTemplate: {
+            id: string;
+            name: string;
+            description: string;
+            category: components["schemas"]["SandboxTemplateCategory"];
+            status: components["schemas"]["SandboxTemplateStatus"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        SandboxTemplateListResponse: {
+            items: components["schemas"]["SandboxTemplate"][];
             total: number;
             page: number;
             limit: number;
@@ -180,7 +302,7 @@ export interface components {
             from: string;
             /** Format: date-time */
             to: string;
-            /** @description Resolution actually used after server-side clamping (Go duration). */
+            /** @description Resolution actually used after server-side clamping. */
             step: string;
             series: components["schemas"]["MetricSeries"][];
         };
@@ -242,13 +364,14 @@ export interface components {
         };
     };
     parameters: {
-        /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+        /** @description Organization identifier. */
         OrgID: string;
-        /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+        /** @description Project identifier. */
         ProjectID: string;
-        /** @description Sandbox UUID */
+        /** @description Sandbox UUID. */
         SandboxID: string;
         Page: number;
+        SandboxTemplateID: string;
         Limit: number;
     };
     requestBodies: never;
@@ -265,9 +388,9 @@ export interface operations {
             };
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
             };
             cookie?: never;
@@ -293,9 +416,9 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
             };
             cookie?: never;
@@ -306,7 +429,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Sandbox created (Kubernetes CR may still be pending — see phase) */
+            /** @description Sandbox accepted; may still be provisioning (check `phase`) */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -327,11 +450,11 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
-                /** @description Sandbox UUID */
+                /** @description Sandbox UUID. */
                 sandbox_id: components["parameters"]["SandboxID"];
             };
             cookie?: never;
@@ -358,11 +481,11 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
-                /** @description Sandbox UUID */
+                /** @description Sandbox UUID. */
                 sandbox_id: components["parameters"]["SandboxID"];
             };
             cookie?: never;
@@ -387,11 +510,11 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
-                /** @description Sandbox UUID */
+                /** @description Sandbox UUID. */
                 sandbox_id: components["parameters"]["SandboxID"];
             };
             cookie?: never;
@@ -418,11 +541,11 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
-                /** @description Sandbox UUID */
+                /** @description Sandbox UUID. */
                 sandbox_id: components["parameters"]["SandboxID"];
             };
             cookie?: never;
@@ -451,23 +574,23 @@ export interface operations {
                 from?: string;
                 /** @description End of the window (RFC3339). Defaults to now. */
                 to?: string;
-                /** @description Resolution as a Go duration (e.g. "60s", "5m"). Server clamps to a sane range. */
+                /** @description Resolution (e.g. "60s", "5m"). Server clamps to a sane range. */
                 step?: string;
             };
             header?: never;
             path: {
-                /** @description Organization identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Organization identifier. */
                 org_id: components["parameters"]["OrgID"];
-                /** @description Project identifier (short string, owned by tenant-service; not a UUID) */
+                /** @description Project identifier. */
                 project_id: components["parameters"]["ProjectID"];
-                /** @description Sandbox UUID */
+                /** @description Sandbox UUID. */
                 sandbox_id: components["parameters"]["SandboxID"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Tenant-scoped metric series for the sandbox */
+            /** @description Metric series for the sandbox */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -477,6 +600,58 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listSandboxTemplates: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated list of sandbox templates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxTemplateListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getSandboxTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: components["parameters"]["SandboxTemplateID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sandbox template details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxTemplate"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
