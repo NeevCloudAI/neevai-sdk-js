@@ -2,7 +2,7 @@ import type { Scope } from "./client.js";
 import { NeevError } from "./errors.js";
 import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
 import { SandboxFiles } from "./sandboxd.js";
-import type { ExecOptions, ExecResult, SandboxConnection } from "./sandboxd.js";
+import type { ExecOptions, ExecResult, ExecStreamEvent, SandboxConnection } from "./sandboxd.js";
 import type {
   SandboxData,
   SandboxMetricsResponse,
@@ -102,6 +102,17 @@ export class Sandbox {
   async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
     const conn = await this.ensureConnection();
     return conn.exec(command, options);
+  }
+
+  // Runs a command and yields its output as it arrives (stdout/stderr text chunks
+  // then a terminal exit event). Like `exec`, waits for the sandbox to be Ready on
+  // first use. A non-zero exit is reported via the exit event, not thrown.
+  async *execStream(
+    command: string | string[],
+    options: ExecOptions = {},
+  ): AsyncGenerator<ExecStreamEvent> {
+    const conn = await this.ensureConnection();
+    yield* conn.execStream(command, options);
   }
 
   // Full raw sandbox record exactly as returned by the API.

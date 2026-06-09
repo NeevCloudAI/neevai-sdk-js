@@ -170,6 +170,16 @@ const result = await sandbox.exec(["sh", "-c", "python3 main.py"]); // → { std
 
 `exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
 
+To consume output **as it is produced** (long-running commands, live logs), use `execStream` — an async generator that yields `stdout`/`stderr` text chunks the moment the daemon flushes them, then a terminal `exit` event:
+
+```ts
+for await (const event of sandbox.execStream(["sh", "-c", "for i in 1 2 3; do echo $i; sleep 1; done"])) {
+  if (event.type === "stdout") process.stdout.write(event.data);
+  else if (event.type === "stderr") process.stderr.write(event.data);
+  else console.log("exit", event.exitCode); // non-zero is reported here, not thrown
+}
+```
+
 These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.
 
 ## Documentation

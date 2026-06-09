@@ -392,5 +392,53 @@ describe("sandboxd", () => {
         NeevError,
       );
     });
+
+    it("execStream yields incremental stdout/stderr/exit events", async () => {
+      const { sandbox, calls } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa("hello ") },
+          { type: "stdout", data: btoa("world") },
+          { type: "stderr", data: btoa("warn") },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const events = [];
+      for await (const ev of sandbox.execStream("echo", { args: ["hi"] })) events.push(ev);
+      expect(events).toEqual([
+        { type: "stdout", data: "hello " },
+        { type: "stdout", data: "world" },
+        { type: "stderr", data: "warn" },
+        { type: "exit", exitCode: 0 },
+      ]);
+      expect(calls[1]?.url).toBe("https://sbx.sandboxes.example/v1/exec");
+    });
+
+    it("execStream decodes a multi-byte char split across frames", async () => {
+      // "é" is 0xC3 0xA9; deliver each byte in its own stdout frame.
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa(String.fromCharCode(0xc3)) },
+          { type: "stdout", data: btoa(String.fromCharCode(0xa9)) },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const out = [];
+      for await (const ev of sandbox.execStream("printf")) {
+        if (ev.type === "stdout") out.push(ev.data);
+      }
+      expect(out.join("")).toBe("é");
+    });
+
+    it("execStream throws a typed error on a terminal error frame", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([{ type: "error", reason_code: "permission_denied", message: "denied" }]),
+      ]);
+      const drain = async () => {
+        const seen = [];
+        for await (const ev of sandbox.execStream("whoami")) seen.push(ev);
+        return seen;
+      };
+      await expect(drain()).rejects.toBeInstanceOf(PermissionDeniedError);
+    });
   });
 });

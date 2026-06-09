@@ -14,6 +14,7 @@ export { SandboxConnection, SandboxFiles } from "./sandboxd.js";
 export type {
   ExecOptions,
   ExecResult,
+  ExecStreamEvent,
   FileEntry,
   ListFilesOptions,
   ReadFileOptions,
