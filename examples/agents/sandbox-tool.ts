@@ -43,7 +43,7 @@ export class SandboxCodeExecutor {
     // and targets the Neev production API by default (override with NEEV_BASE_URL).
     this.neev = new Neev();
     this.templateId = options.templateId ?? "sb-ubuntu-26-04-minimal";
-    this.region = options.region ?? "as-south-1";
+    this.region = options.region ?? process.env.NEEV_REGION ?? "as-south-1";
     this.namePrefix = options.namePrefix ?? "agent-demo";
   }
 
