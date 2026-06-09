@@ -37,6 +37,12 @@ const MAX_STEPS = 6;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
 const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
+const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
+
+// Writes one transcript line (everything goes to stdout, in order).
+function line(text = ""): void {
+  process.stdout.write(`${text}\n`);
+}
 
 // Minimal shapes of the OpenAI-compatible chat payloads we use.
 interface ToolCall {
@@ -66,8 +72,15 @@ const TOOLS = [
   },
 ];
 
+// Token usage reported by one chat-completions round.
+interface Usage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+}
+
 // One chat-completions round against the Neev inference endpoint.
-async function chat(messages: ChatMessage[]): Promise<ChatMessage> {
+async function chat(messages: ChatMessage[]): Promise<{ message: ChatMessage; usage?: Usage }> {
   const res = await fetch(`${NEEV_INFERENCE_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -77,13 +90,19 @@ async function chat(messages: ChatMessage[]): Promise<ChatMessage> {
     body: JSON.stringify({ model: NEEV_MODEL, messages, tools: TOOLS, temperature: 0 }),
   });
   if (!res.ok) throw new Error(`inference ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const data = (await res.json()) as { choices: { message: ChatMessage }[] };
-  return data.choices[0]?.message ?? { role: "assistant", content: "" };
+  const data = (await res.json()) as { choices: { message: ChatMessage }[]; usage?: Usage };
+  return {
+    message: data.choices[0]?.message ?? { role: "assistant", content: "" },
+    usage: data.usage,
+  };
 }
 
 async function main(): Promise<void> {
   const neev = new Neev();
-  console.error(dim(`creating sandbox (region=${REGION})…`));
+  line(bold("AI code-interpreter (gpt-oss-120b → Neev sandbox)"));
+  line(dim(`task: ${TASK}`));
+
+  line(dim(`\n[sandbox] creating (template=sb-ubuntu-26-04-minimal, region=${REGION})…`));
   const sandbox = await neev.sandboxes.create({
     name: `ai-${Math.random().toString(36).slice(2, 8)}`,
     sandbox_template_id: "sb-ubuntu-26-04-minimal",
@@ -103,15 +122,26 @@ async function main(): Promise<void> {
   ];
 
   try {
-    for (let step = 0; step < MAX_STEPS; step++) {
-      const message = await chat(messages);
+    for (let step = 1; step <= MAX_STEPS; step++) {
+      line(bold(`\n━━━━━ step ${step} ━━━━━`));
+      line(dim(`[model] calling ${NEEV_MODEL} with ${messages.length} messages…`));
+      const { message, usage } = await chat(messages);
       messages.push(message);
+      if (usage) {
+        line(
+          dim(
+            `[model] tokens: prompt=${usage.prompt_tokens ?? "?"} completion=${usage.completion_tokens ?? "?"} total=${usage.total_tokens ?? "?"}`,
+          ),
+        );
+      }
 
       if (message.tool_calls?.length) {
+        line(dim(`[model] requested ${message.tool_calls.length} tool call(s)`));
         for (const call of message.tool_calls) {
           const args = JSON.parse(call.function.arguments || "{}") as { command?: string };
           const command = args.command ?? "";
-          console.log(`\n${cyan(`$ ${command}`)}`);
+          line(`${dim("[tool] run_shell")}\n  ${cyan(`$ ${command}`)}`);
+          line(dim("  ┌─ live output ───────────────────────"));
 
           // Stream the command's output to the terminal as it runs.
           let stdout = "";
@@ -124,34 +154,30 @@ async function main(): Promise<void> {
               process.stdout.write(event.data);
               stdout += event.data;
             } else if (event.type === "stderr") {
-              process.stderr.write(event.data);
+              process.stdout.write(event.data);
               stderr += event.data;
             } else {
               exitCode = event.exitCode;
             }
           }
-          console.log(dim(`(exit ${exitCode})`));
+          line(dim(`  └─ exit ${exitCode} ────────────────────────`));
 
           // Feed the result back so the model can continue.
-          messages.push({
-            role: "tool",
-            tool_call_id: call.id,
-            content: `exit_code: ${exitCode}\nstdout:\n${stdout}\nstderr:\n${stderr}`.slice(
-              0,
-              4000,
-            ),
-          });
+          const result = `exit_code: ${exitCode}\nstdout:\n${stdout}\nstderr:\n${stderr}`;
+          messages.push({ role: "tool", tool_call_id: call.id, content: result.slice(0, 4000) });
+          line(dim(`[tool] returned ${result.length} bytes to the model`));
         }
         continue;
       }
 
       // No tool call → the model's final answer.
-      if (message.content) console.log(`\n${green(message.content.trim())}`);
+      line(green(bold("\n✅ final answer:")));
+      line(green((message.content ?? "").trim()));
       return;
     }
-    console.error(dim(`stopped after ${MAX_STEPS} steps`));
+    line(dim(`\nstopped after ${MAX_STEPS} steps`));
   } finally {
-    console.error(dim(`deleting sandbox ${sandbox.id}`));
+    line(dim(`\n[sandbox] deleting ${sandbox.id}`));
     await sandbox.delete();
   }
 }
