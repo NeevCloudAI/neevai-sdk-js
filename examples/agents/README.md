@@ -18,6 +18,17 @@ So each example file holds only the framework-specific wiring.
 | [`langchain.ts`](./langchain.ts) | LangChain.js (LangGraph ReAct agent) | NeevCloud `gpt-oss-120b` |
 | [`genkit.ts`](./genkit.ts) | Google Genkit | NeevCloud `gpt-oss-120b` |
 | [`vercel-ai.ts`](./vercel-ai.ts) | Vercel AI SDK | NeevCloud `gpt-oss-120b` |
+| [`ai-interpreter.ts`](./ai-interpreter.ts) | none (hand-rolled loop) | NeevCloud `gpt-oss-120b` |
+
+**[`ai-interpreter.ts`](./ai-interpreter.ts)** is the highlight: the model writes
+shell, it runs in the sandbox, and its output **streams to your terminal live**
+(via `sandbox.execStream`) as it executes — the "AI writes code, watch it run
+safely" demo. No framework, no extra deps (just `@neev/sdk` + global `fetch`):
+
+```sh
+npm install @neev/sdk
+npx tsx examples/agents/ai-interpreter.ts
+```
 
 ## Setup
 
