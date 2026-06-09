@@ -61,6 +61,65 @@ sandbox, and its output streams to your terminal live. See
 > The `pnpm add -D` installs are just to run the examples in your working copy —
 > they don't need to be committed.
 
+## Step-by-step: run every example
+
+Do the [Quick setup](#quick-setup-once) once, then run each in order. Each
+example provisions a real sandbox, so the project needs available credits
+(`create` returns `failed to validate funds` when they're exhausted).
+
+**1. Lifecycle**
+```sh
+npx tsx examples/create-sandbox.ts
+```
+→ `created … from sb-…` → `ready at https://….sandboxes.<region>…` → `metric series: …` → `paused …` → `deleted`.
+
+**2. Streaming exec**
+```sh
+npx tsx examples/streaming-exec.ts
+```
+→ `line 1 … line 5`, each ~1s apart (the `+Nms` timestamps climb), then `exit 0`.
+
+**3. Parallel fan-out + metrics**
+```sh
+npx tsx examples/parallel-fanout.ts
+```
+→ three shard sums → `sum(1..3000) across 3 sandboxes = 4501500`.
+
+**4. Metrics under load**
+```sh
+npx tsx examples/sandbox-metrics.ts
+```
+→ per-burst readouts; `disk_usage_bytes` carries real points (`cpu`/`memory` depend on the environment's metrics pipeline).
+
+The remaining examples need an AI model — set `NEEV_INFERENCE_API_KEY` (see above).
+
+**5. AI code-interpreter** (no extra deps) — the highlight
+```sh
+npx tsx examples/agents/ai-interpreter.ts
+```
+→ a step-by-step transcript: model call (+token usage) → `run_shell` → output streaming live → `✅ final answer`.
+
+**6. LangChain**
+```sh
+pnpm add -D @langchain/core @langchain/openai @langchain/langgraph zod
+npx tsx examples/agents/langchain.ts
+```
+→ `3fb3a134aebfd0bf072b02b4096612a39e201593853091c52510d37adc3d98de` (SHA-256 of `neev`).
+
+**7. Vercel AI SDK**
+```sh
+pnpm add -D ai@^4 @ai-sdk/openai@^1 zod
+npx tsx examples/agents/vercel-ai.ts
+```
+→ same digest, via the Vercel AI SDK tool loop.
+
+**8. Genkit**
+```sh
+pnpm add -D genkit @genkit-ai/compat-oai
+npx tsx examples/agents/genkit.ts
+```
+→ same digest, via Genkit + `@genkit-ai/compat-oai`.
+
 ## Environment reference
 
 | Variable | Used by | Default |
