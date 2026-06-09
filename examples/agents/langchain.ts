@@ -51,6 +51,9 @@ async function main(): Promise<void> {
     tools: [runPython, runShell],
   });
 
+  console.error(
+    `[agent] LangChain · ${NEEV_MODEL} — running (first sandbox call waits for warmup)…`,
+  );
   try {
     const result = await agent.invoke(
       {

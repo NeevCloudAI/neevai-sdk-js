@@ -52,11 +52,15 @@ export class SandboxCodeExecutor {
   private async ensure(): Promise<Sandbox> {
     if (!this.sandbox) {
       const suffix = Math.random().toString(36).slice(2, 8);
+      log(`creating sandbox (template=${this.templateId}, region=${this.region})…`);
       this.sandbox = await this.neev.sandboxes.create({
         name: `${this.namePrefix}-${suffix}`,
         sandbox_template_id: this.templateId,
         region: this.region,
       });
+      log(`created ${this.sandbox.id} (${this.sandbox.phase}); waiting until ready…`);
+      await this.sandbox.waitUntilReady();
+      log(`ready: ${this.sandbox.connectUrl ?? "(no connect url)"}`);
     }
     return this.sandbox;
   }
@@ -67,23 +71,43 @@ export class SandboxCodeExecutor {
   async runPython(code: string): Promise<RunResult> {
     const sandbox = await this.ensure();
     await sandbox.files.write("snippet.py", code);
-    return sandbox.exec(["python3", "snippet.py"]);
+    return this.logged("python3 snippet.py", () => sandbox.exec(["python3", "snippet.py"]));
   }
 
   // Runs a shell command inside the sandbox. Uses `sh`, which is present on the
   // minimal catalogue images (they do not ship bash).
   async runShell(command: string): Promise<RunResult> {
     const sandbox = await this.ensure();
-    return sandbox.exec(["sh", "-c", command]);
+    return this.logged(command, () => sandbox.exec(["sh", "-c", command]));
   }
 
   // Deletes the sandbox if one was provisioned. Safe to call when none was.
   async cleanup(): Promise<void> {
     if (this.sandbox) {
+      log(`deleting sandbox ${this.sandbox.id}`);
       await this.sandbox.delete();
       this.sandbox = undefined;
     }
   }
+
+  // Runs an exec, logging the command and its exit code (or failure, e.g. while
+  // the sandbox endpoint is still warming up). Re-throws so callers see errors.
+  private async logged(label: string, run: () => Promise<RunResult>): Promise<RunResult> {
+    log(`exec: ${label}`);
+    try {
+      const result = await run();
+      log(`  -> exit ${result.exitCode}`);
+      return result;
+    } catch (err) {
+      log(`  -> failed: ${(err as Error).message}`);
+      throw err;
+    }
+  }
+}
+
+// Writes a progress line to stderr so stdout carries only the agent's answer.
+function log(message: string): void {
+  console.error(`[neev] ${message}`);
 }
 
 // Renders a RunResult as a compact text block for an LLM tool response.

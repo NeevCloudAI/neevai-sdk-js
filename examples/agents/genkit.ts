@@ -55,6 +55,7 @@ async function main(): Promise<void> {
     async ({ command }) => formatRunResult(await executor.runShell(command)),
   );
 
+  console.error(`[agent] Genkit · ${NEEV_MODEL} — running…`);
   try {
     const { text } = await ai.generate({
       model: `neev/${NEEV_MODEL}`,

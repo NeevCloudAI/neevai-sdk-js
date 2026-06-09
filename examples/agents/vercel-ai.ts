@@ -31,6 +31,7 @@ async function main(): Promise<void> {
     apiKey: neevInferenceApiKey(),
   });
 
+  console.error(`[agent] Vercel AI SDK · ${NEEV_MODEL} — running…`);
   try {
     const { text } = await generateText({
       model: neev(NEEV_MODEL),
