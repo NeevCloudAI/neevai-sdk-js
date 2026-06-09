@@ -26,13 +26,14 @@ shell, it runs in the sandbox, and its output **streams to your terminal live**
 safely" demo. No framework, no extra deps (just `@neev/sdk` + global `fetch`):
 
 ```sh
-npm install @neev/sdk
 npx tsx examples/agents/ai-interpreter.ts
 ```
 
 ## Setup
 
-One NeevCloud API key covers both the sandbox and the model. Set:
+First do the one-time setup in [`../README.md`](../README.md) (`pnpm install &&
+pnpm build` — `@neev/sdk` then resolves from the local build, no install needed).
+One NeevCloud API key covers both the sandbox and the model:
 
 ```sh
 export NEEV_API_KEY=...        # sandbox + model (inference)
@@ -60,17 +61,23 @@ python3` first via `runShell`). Sandbox file paths are **workspace-relative**.
 
 ## Run
 
+`@neev/sdk` resolves from the local build (after `pnpm build`); each framework
+example needs only its own peer deps installed:
+
 ```sh
+# AI code-interpreter — no extra deps
+npx tsx examples/agents/ai-interpreter.ts
+
 # LangChain
-npm install @neev/sdk @langchain/core @langchain/openai @langchain/langgraph zod
+pnpm add -D @langchain/core @langchain/openai @langchain/langgraph zod
 npx tsx examples/agents/langchain.ts
 
 # Google Genkit
-npm install @neev/sdk genkit @genkit-ai/compat-oai
+pnpm add -D genkit @genkit-ai/compat-oai
 npx tsx examples/agents/genkit.ts
 
-# Vercel AI SDK
-npm install @neev/sdk ai @ai-sdk/openai zod
+# Vercel AI SDK (v4 API)
+pnpm add -D ai@^4 @ai-sdk/openai@^1 zod
 npx tsx examples/agents/vercel-ai.ts
 ```
 
