@@ -26,9 +26,21 @@ export NEEV_PROJECT_ID=...
 ```
 
 Plus the model provider key the example uses (`OPENAI_API_KEY` or
-`GEMINI_API_KEY`). The default template is `sb-ubuntu-26-04-minimal`; pass a
-Python-capable template to `new SandboxCodeExecutor({ templateId })` if you want
-the Python tool to work out of the box.
+`GEMINI_API_KEY`).
+
+**Templates and binaries.** Discover available templates with `neev.templates.list()`
+(e.g. `sb-debian-12-minimal`, `sb-ubuntu-26-04-minimal`). The minimal images are
+deliberately small: they ship `sh` but **not** `bash`, and **not** `python3`. So:
+
+- `runShell` uses `sh -c` and works on every template.
+- `runPython` needs a python-capable template — pass one to
+  `new SandboxCodeExecutor({ templateId })`, or install python first via
+  `runShell` (e.g. `apt-get update && apt-get install -y python3`).
+
+Sandbox file paths are **workspace-relative** (the daemon rejects absolute paths).
+
+If your account's default region isn't set, pass an explicit `region` to
+`sandboxes.create` (e.g. `as-dev-1` on dev).
 
 ## Run
 

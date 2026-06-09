@@ -56,16 +56,19 @@ export class SandboxCodeExecutor {
   }
 
   // Writes the given Python source into the sandbox and runs it with python3.
+  // Paths are workspace-relative (the daemon rejects absolute paths). Requires a
+  // python-capable template; the minimal catalogue images do not ship python3.
   async runPython(code: string): Promise<RunResult> {
     const sandbox = await this.ensure();
-    await sandbox.files.write("/work/snippet.py", code);
-    return sandbox.exec(["python3", "/work/snippet.py"]);
+    await sandbox.files.write("snippet.py", code);
+    return sandbox.exec(["python3", "snippet.py"]);
   }
 
-  // Runs a shell command inside the sandbox via bash.
+  // Runs a shell command inside the sandbox. Uses `sh`, which is present on the
+  // minimal catalogue images (they do not ship bash).
   async runShell(command: string): Promise<RunResult> {
     const sandbox = await this.ensure();
-    return sandbox.exec(["bash", "-lc", command]);
+    return sandbox.exec(["sh", "-c", command]);
   }
 
   // Deletes the sandbox if one was provisioned. Safe to call when none was.

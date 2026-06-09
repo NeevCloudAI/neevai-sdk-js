@@ -151,14 +151,16 @@ These graduate to fully-typed resource methods as specs land in the SDK.
 
 Operations that act inside a running sandbox are reached directly on the sandbox handle. The handle resolves the sandbox's `connect_url` (returned by `create`/`get`/`list`) on first use and caches it; if the sandbox isn't Ready yet, the first `files`/`exec` call waits until it is:
 
+File paths are workspace-relative (the daemon rejects absolute paths):
+
 ```ts
 const sandbox = await neev.sandboxes.get(id);
-await sandbox.files.write("/work/main.py", "print('hi')"); // → { bytesWritten }
-const bytes = await sandbox.files.read("/work/main.py"); // → Uint8Array
-const text = await sandbox.files.readText("/work/main.py"); // → string
-const entries = await sandbox.files.list("/work", { recursive: true }); // → FileEntry[]
+await sandbox.files.write("main.py", "print('hi')"); // → { bytesWritten }
+const bytes = await sandbox.files.read("main.py"); // → Uint8Array
+const text = await sandbox.files.readText("main.py"); // → string
+const entries = await sandbox.files.list(".", { recursive: true }); // → FileEntry[]
 
-const result = await sandbox.exec(["python", "/work/main.py"]); // → { stdout, stderr, exitCode }
+const result = await sandbox.exec(["sh", "-c", "python3 main.py"]); // → { stdout, stderr, exitCode }
 ```
 
 `exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
