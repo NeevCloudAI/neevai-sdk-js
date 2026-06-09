@@ -46,8 +46,7 @@ export interface RequestContext {
   resolveScope(scope?: Scope): { orgId: string; projectId: string };
 }
 
-// Default base URL of the Neev agent API: the production consolidated gateway,
-// which routes the aiagent service under the `/agent` prefix.
+// Default base URL of the Neev production API.
 const DEFAULT_BASE_URL = "https://api.ai.neevcloud.com/agent";
 // Default per-request timeout in milliseconds.
 const DEFAULT_TIMEOUT_MS = 60_000;

@@ -17,16 +17,14 @@ framework-specific wiring.
 
 ## Prerequisites
 
-A Neev API key plus org/project, set in the environment. The base URL defaults
-to the production gateway `https://api.ai.neevcloud.com/agent`; set
-`NEEV_BASE_URL` to target another environment.
+A Neev API key plus org/project, set in the environment. The client targets the
+Neev production API by default; set `NEEV_BASE_URL` only to target another
+environment.
 
 ```sh
 export NEEV_API_KEY=...
 export NEEV_ORG_ID=...
 export NEEV_PROJECT_ID=...
-# Optional — defaults to production:
-export NEEV_BASE_URL=https://api.ai.neevcloud.com/agent
 ```
 
 Plus the model provider key the example uses (`OPENAI_API_KEY` or

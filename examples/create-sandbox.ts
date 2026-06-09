@@ -1,15 +1,15 @@
 /**
  * Create a sandbox, wait for it to become Ready, read its metrics, then clean up.
  *
- * Run with (base URL defaults to the production gateway
- * https://api.ai.neevcloud.com/agent; override with NEEV_BASE_URL):
+ * Run with (targets the Neev production API by default; override with
+ * NEEV_BASE_URL):
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/create-sandbox.ts
  */
 import { Neev } from "@neev/sdk";
 
-// Construct the client from NEEV_* environment variables. The base URL defaults
-// to the production gateway https://api.ai.neevcloud.com/agent.
+// Construct the client from NEEV_* environment variables. Targets the Neev
+// production API by default.
 const neev = new Neev();
 
 // Production region for sandbox provisioning.
