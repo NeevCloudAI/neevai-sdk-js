@@ -23,6 +23,8 @@ export interface SandboxCodeExecutorOptions {
   // Catalogue template id the sandbox is created from. Use a Python-capable
   // template for `runPython`.
   templateId?: string;
+  // Region to provision in. Defaults to the production region `as-south-1`.
+  region?: string;
   // Prefix for the generated sandbox name.
   namePrefix?: string;
 }
@@ -32,13 +34,17 @@ export interface SandboxCodeExecutorOptions {
 export class SandboxCodeExecutor {
   private readonly neev: Neev;
   private readonly templateId: string;
+  private readonly region: string;
   private readonly namePrefix: string;
   private sandbox?: Sandbox;
 
   constructor(options: SandboxCodeExecutorOptions = {}) {
     // Reads NEEV_API_KEY / NEEV_ORG_ID / NEEV_PROJECT_ID from the environment.
+    // The base URL defaults to the production gateway
+    // https://api.ai.neevcloud.com/agent (override with NEEV_BASE_URL).
     this.neev = new Neev();
     this.templateId = options.templateId ?? "sb-ubuntu-26-04-minimal";
+    this.region = options.region ?? "as-south-1";
     this.namePrefix = options.namePrefix ?? "agent-demo";
   }
 
@@ -50,6 +56,7 @@ export class SandboxCodeExecutor {
       this.sandbox = await this.neev.sandboxes.create({
         name: `${this.namePrefix}-${suffix}`,
         sandbox_template_id: this.templateId,
+        region: this.region,
       });
     }
     return this.sandbox;

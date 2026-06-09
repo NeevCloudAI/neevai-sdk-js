@@ -34,8 +34,11 @@ The client reads configuration from explicit options or `NEEV_*` environment var
 | `apiKey`    | `NEEV_API_KEY`          | yes      | —       |
 | `orgId`     | `NEEV_ORG_ID`           | yes\*    | —       |
 | `projectId` | `NEEV_PROJECT_ID`       | yes\*    | —       |
+| `baseURL`   | `NEEV_BASE_URL`         | no       | `https://api.ai.neevcloud.com/agent` |
 
 \* `orgId` / `projectId` may be set on the client or overridden per call.
+
+The default `baseURL` is the production gateway (`https://api.ai.neevcloud.com/agent`); set `NEEV_BASE_URL` to target another environment.
 
 ## Quickstart
 
@@ -52,6 +55,7 @@ const neev = new Neev({
 const sandbox = await neev.sandboxes.create({
   name: "my-agent",
   sandbox_template_id: "sb-ubuntu-26-04-minimal",
+  region: "as-south-1", // production region
 });
 await sandbox.waitUntilReady();
 
@@ -87,6 +91,7 @@ Create requires a `sandbox_template_id`. Pass a known id directly, or browse the
 const sandbox = await neev.sandboxes.create({
   name: "my-agent",
   sandbox_template_id: "sb-ubuntu-26-04-minimal",
+  region: "as-south-1", // production region
 });
 
 // Or discover what's available first.

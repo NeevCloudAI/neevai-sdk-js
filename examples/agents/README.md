@@ -17,12 +17,16 @@ framework-specific wiring.
 
 ## Prerequisites
 
-A Neev API key plus org/project, set in the environment:
+A Neev API key plus org/project, set in the environment. The base URL defaults
+to the production gateway `https://api.ai.neevcloud.com/agent`; set
+`NEEV_BASE_URL` to target another environment.
 
 ```sh
 export NEEV_API_KEY=...
 export NEEV_ORG_ID=...
 export NEEV_PROJECT_ID=...
+# Optional — defaults to production:
+export NEEV_BASE_URL=https://api.ai.neevcloud.com/agent
 ```
 
 Plus the model provider key the example uses (`OPENAI_API_KEY` or
@@ -39,8 +43,8 @@ deliberately small: they ship `sh` but **not** `bash`, and **not** `python3`. So
 
 Sandbox file paths are **workspace-relative** (the daemon rejects absolute paths).
 
-If your account's default region isn't set, pass an explicit `region` to
-`sandboxes.create` (e.g. `as-dev-1` on dev).
+The executor provisions in the production region `as-south-1` by default; pass
+`new SandboxCodeExecutor({ region })` to target another region.
 
 ## Run
 
