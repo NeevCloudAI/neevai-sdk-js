@@ -80,16 +80,18 @@ const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
 
 ### Sandbox templates
 
-Create requires a `sandbox_template_id`. Discover the available templates from the platform catalogue:
+Create requires a `sandbox_template_id`. Pass a known id directly, or browse the catalogue to discover one:
 
 ```ts
-const templates = await neev.templates.list();
-const template = await neev.templates.get("sb-ubuntu-26-04-minimal");
-
+// Create directly from a known template id.
 const sandbox = await neev.sandboxes.create({
   name: "my-agent",
-  sandbox_template_id: template.id,
+  sandbox_template_id: "sb-ubuntu-26-04-minimal",
 });
+
+// Or discover what's available first.
+const { items } = await neev.templates.list();
+const template = await neev.templates.get("sb-ubuntu-26-04-minimal"); // inspect one
 ```
 
 ### Sandbox handles
@@ -147,7 +149,7 @@ These graduate to fully-typed resource methods as specs land in the SDK.
 
 ### Working inside a sandbox (files & exec)
 
-Operations that act inside a running sandbox are reached directly on the sandbox handle (the sandbox must be Ready):
+Operations that act inside a running sandbox are reached directly on the sandbox handle. The handle resolves the sandbox's `connect_url` (returned by `create`/`get`/`list`) on first use and caches it; if the sandbox isn't Ready yet, the first `files`/`exec` call waits until it is:
 
 ```ts
 const sandbox = await neev.sandboxes.get(id);

@@ -168,12 +168,19 @@ export class SandboxConnection {
   }
 }
 
+// Resolves the daemon connection for a file operation. The Sandbox handle
+// supplies an async resolver that waits until the sandbox is Ready and caches
+// the connection; a concrete SandboxConnection is wrapped as an already-resolved
+// provider. Resolving per call lets `sandbox.files` stay a synchronous getter
+// while the underlying connect_url may only arrive once the sandbox is Ready.
+export type ConnectionResolver = () => Promise<SandboxConnection>;
+
 // Filesystem operations exposed by sandboxd. Reached via `sandbox.files`.
 export class SandboxFiles {
-  private readonly conn: SandboxConnection;
+  private readonly resolve: ConnectionResolver;
 
-  constructor(conn: SandboxConnection) {
-    this.conn = conn;
+  constructor(conn: SandboxConnection | ConnectionResolver) {
+    this.resolve = typeof conn === "function" ? conn : () => Promise.resolve(conn);
   }
 
   // Writes content to a path in the sandbox, returning the number of bytes written.
@@ -182,7 +189,8 @@ export class SandboxFiles {
     content: string | Uint8Array,
     options: WriteFileOptions = {},
   ): Promise<WriteFileResult> {
-    const response = await this.conn.request({
+    const conn = await this.resolve();
+    const response = await conn.request({
       method: "POST",
       path: "/v1/files/write",
       query: { path, cwd: options.cwd },
@@ -196,7 +204,8 @@ export class SandboxFiles {
 
   // Reads a file from the sandbox and returns its raw bytes (binary-safe).
   async read(path: string, options: ReadFileOptions = {}): Promise<Uint8Array> {
-    const response = await this.conn.request({
+    const conn = await this.resolve();
+    const response = await conn.request({
       method: "POST",
       path: "/v1/files/read",
       headers: { "content-type": "application/json", accept: "application/octet-stream" },
@@ -213,7 +222,8 @@ export class SandboxFiles {
 
   // Lists directory entries at a path in the sandbox.
   async list(path: string, options: ListFilesOptions = {}): Promise<FileEntry[]> {
-    const response = await this.conn.request({
+    const conn = await this.resolve();
+    const response = await conn.request({
       method: "POST",
       path: "/v1/files/list",
       headers: { "content-type": "application/json" },
