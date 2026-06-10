@@ -64,11 +64,12 @@ async function main(): Promise<void> {
           },
         ],
       },
-      // A freshly-created sandbox's data-plane hostname takes a few seconds to
-      // resolve after it reports Ready, so the first tool calls may fail while
-      // the agent waits for it to come up. Raise the step budget above the
-      // default 25 so the agent can wait that out instead of erroring.
-      { recursionLimit: 100 },
+      // A successful run needs only a couple of steps (one tool call, then the
+      // answer); the extra headroom tolerates a few retries while a freshly
+      // created sandbox's data-plane hostname resolves. A low limit also makes a
+      // model that loops on tool calls fail fast with the diagnosis below,
+      // rather than churning silently through many model calls first.
+      { recursionLimit: 16 },
     );
     const final = result.messages.at(-1);
     console.log(final?.content);
