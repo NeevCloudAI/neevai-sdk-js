@@ -1,5 +1,5 @@
 ---
-"@neev/sdk": minor
+"@neevcloud/sdk": minor
 ---
 
 Sync the sandbox lifecycle surface to the current aiagent API and add the sandbox-template catalogue.

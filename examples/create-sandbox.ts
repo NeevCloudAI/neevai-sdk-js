@@ -6,7 +6,7 @@
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/create-sandbox.ts
  */
-import { Neev } from "@neev/sdk";
+import { Neev } from "@neevcloud/sdk";
 
 // Construct the client from NEEV_* environment variables. Targets the Neev
 // production API by default.

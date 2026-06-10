@@ -11,7 +11,7 @@
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/streaming-exec.ts
  */
-import { Neev } from "@neev/sdk";
+import { Neev } from "@neevcloud/sdk";
 
 const neev = new Neev();
 
