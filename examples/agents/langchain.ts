@@ -64,18 +64,42 @@ async function main(): Promise<void> {
           },
         ],
       },
-      // A freshly-created sandbox's data-plane hostname takes a few seconds to
-      // resolve after it reports Ready, so the first tool calls may fail while
-      // the agent waits for it to come up. Raise the step budget above the
-      // default 25 so the agent can wait that out instead of erroring.
-      { recursionLimit: 100 },
+      // A successful run needs only a couple of steps (one tool call, then the
+      // answer); the extra headroom tolerates a few retries while a freshly
+      // created sandbox's data-plane hostname resolves. A low limit also makes a
+      // model that loops on tool calls fail fast with the diagnosis below,
+      // rather than churning silently through many model calls first.
+      { recursionLimit: 16 },
     );
     const final = result.messages.at(-1);
     console.log(final?.content);
+  } catch (err) {
+    // Hitting the recursion limit here almost always means the model never
+    // consumed the tool results: it re-issued the same tool call every turn
+    // instead of producing a final answer, so the ReAct loop ran until the
+    // step budget was exhausted. That points at the inference endpoint not
+    // feeding `role:"tool"` messages back into the model (rather than the
+    // sandbox or this example), so surface that diagnosis instead of the raw
+    // "recursion limit reached" message.
+    if (isRecursionLimitError(err)) {
+      throw new Error(
+        `Agent hit the step limit without answering: the model kept re-calling the tool instead of using its output. This usually means the inference endpoint is not feeding tool results back to the model — verify tool calling against ${NEEV_INFERENCE_BASE_URL} (a plain chat completion will still work) or point NEEV_MODEL / NEEV_INFERENCE_BASE_URL at a tool-calling-capable deployment.`,
+        { cause: err },
+      );
+    }
+    throw err;
   } finally {
     // Always release the sandbox so it stops billing.
     await executor.cleanup();
   }
+}
+
+// Reports whether an error is LangGraph's recursion-limit error, raised when the
+// agent loops to its `recursionLimit` without reaching a stop condition. Matched
+// by error name and message so it does not depend on importing the error class.
+function isRecursionLimitError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.name === "GraphRecursionError" || /recursion limit/i.test(err.message);
 }
 
 main().catch((err) => {
