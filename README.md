@@ -1,8 +1,8 @@
-# @neev/sdk
+# @neevcloud/sdk
 
 > Official NeevCloud SDK for the Neev platform — Node, Bun, Deno & edge.
 
-`@neev/sdk` is the single, growing TypeScript client for the **Neev platform**.
+`@neevcloud/sdk` is the single, growing TypeScript client for the **Neev platform**.
 One package, one auth model, one client — adopt new capabilities as they ship.
 
 **Available today**
@@ -19,8 +19,8 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 ## Install
 
 ```sh
-npm install @neev/sdk
-# or: pnpm add @neev/sdk · yarn add @neev/sdk · bun add @neev/sdk
+npm install @neevcloud/sdk
+# or: pnpm add @neevcloud/sdk · yarn add @neevcloud/sdk · bun add @neevcloud/sdk
 ```
 
 Requires a server-side JS runtime with global `fetch`: **Node 18+**, **Bun**, **Deno**, or an edge runtime. There is no browser build — your API key must never ship to a browser.
@@ -43,7 +43,7 @@ The client reads configuration from explicit options or `NEEV_*` environment var
 ## Quickstart
 
 ```ts
-import { Neev } from "@neev/sdk";
+import { Neev } from "@neevcloud/sdk";
 
 const neev = new Neev({
   apiKey: process.env.NEEV_API_KEY,
@@ -124,7 +124,7 @@ await neev.sandboxes.list({ orgId: "other-org", projectId: "other-proj" });
 Every failure is a typed `NeevError` subclass:
 
 ```ts
-import { NotFoundError, RateLimitError, APIError } from "@neev/sdk";
+import { NotFoundError, RateLimitError, APIError } from "@neevcloud/sdk";
 
 try {
   await neev.sandboxes.get("missing");

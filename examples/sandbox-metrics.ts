@@ -15,7 +15,7 @@
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/sandbox-metrics.ts
  */
-import { Neev, type Sandbox, type SandboxMetricsResponse } from "@neev/sdk";
+import { Neev, type Sandbox, type SandboxMetricsResponse } from "@neevcloud/sdk";
 
 const neev = new Neev();
 

@@ -23,7 +23,7 @@ So each example file holds only the framework-specific wiring.
 **[`ai-interpreter.ts`](./ai-interpreter.ts)** is the highlight: the model writes
 shell, it runs in the sandbox, and its output **streams to your terminal live**
 (via `sandbox.execStream`) as it executes — the "AI writes code, watch it run
-safely" demo. No framework, no extra deps (just `@neev/sdk` + global `fetch`):
+safely" demo. No framework, no extra deps (just `@neevcloud/sdk` + global `fetch`):
 
 ```sh
 npx tsx examples/agents/ai-interpreter.ts
@@ -32,7 +32,7 @@ npx tsx examples/agents/ai-interpreter.ts
 ## Setup
 
 First do the one-time setup in [`../README.md`](../README.md) (`pnpm install &&
-pnpm build` — `@neev/sdk` then resolves from the local build, no install needed).
+pnpm build` — `@neevcloud/sdk` then resolves from the local build, no install needed).
 One NeevCloud API key covers both the sandbox and the model:
 
 ```sh
@@ -61,7 +61,7 @@ python3` first via `runShell`). Sandbox file paths are **workspace-relative**.
 
 ## Run
 
-`@neev/sdk` resolves from the local build (after `pnpm build`); each framework
+`@neevcloud/sdk` resolves from the local build (after `pnpm build`); each framework
 example needs only its own peer deps installed:
 
 ```sh

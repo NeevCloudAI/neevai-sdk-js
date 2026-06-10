@@ -1,7 +1,7 @@
 # Examples
 
-Runnable examples for `@neev/sdk`. The package isn't published yet, so run them
-from this repository — `import "@neev/sdk"` resolves to the local build
+Runnable examples for `@neevcloud/sdk`. The package isn't published yet, so run them
+from this repository — `import "@neevcloud/sdk"` resolves to the local build
 automatically (Node package self-referencing), so no link step is needed.
 
 ## Quick setup (once)
@@ -9,7 +9,7 @@ automatically (Node package self-referencing), so no link step is needed.
 ```sh
 # from the repo root
 pnpm install
-pnpm build            # builds dist/ — examples import "@neev/sdk" and resolve to it
+pnpm build            # builds dist/ — examples import "@neevcloud/sdk" and resolve to it
 
 # sandbox credentials
 export NEEV_API_KEY=...        # your sandbox API key
@@ -49,7 +49,7 @@ export NEEV_INFERENCE_API_KEY=...   # inference key
 
 | File | Extra install | Run |
 |------|---------------|-----|
-| [`agents/ai-interpreter.ts`](./agents/ai-interpreter.ts) | none (only `@neev/sdk` + `fetch`) | `npx tsx examples/agents/ai-interpreter.ts` |
+| [`agents/ai-interpreter.ts`](./agents/ai-interpreter.ts) | none (only `@neevcloud/sdk` + `fetch`) | `npx tsx examples/agents/ai-interpreter.ts` |
 | [`agents/langchain.ts`](./agents/langchain.ts) | `pnpm add -D @langchain/core @langchain/openai @langchain/langgraph zod` | `npx tsx examples/agents/langchain.ts` |
 | [`agents/vercel-ai.ts`](./agents/vercel-ai.ts) | `pnpm add -D ai@^4 @ai-sdk/openai@^1 zod` | `npx tsx examples/agents/vercel-ai.ts` |
 | [`agents/genkit.ts`](./agents/genkit.ts) | `pnpm add -D genkit @genkit-ai/compat-oai` | `npx tsx examples/agents/genkit.ts` |

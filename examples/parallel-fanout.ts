@@ -10,7 +10,7 @@
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/parallel-fanout.ts
  */
-import { Neev, type Sandbox } from "@neev/sdk";
+import { Neev, type Sandbox } from "@neevcloud/sdk";
 
 const neev = new Neev();
 

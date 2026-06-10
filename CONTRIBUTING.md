@@ -1,4 +1,4 @@
-# Contributing to @neev/sdk
+# Contributing to @neevcloud/sdk
 
 Thanks for your interest in improving the Neev SDK!
 

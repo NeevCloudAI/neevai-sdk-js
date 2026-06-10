@@ -1,4 +1,4 @@
-// Public entry point for @neev/sdk. Re-exports the client, resource types,
+// Public entry point for @neevcloud/sdk. Re-exports the client, resource types,
 // the Sandbox handle, and the typed error hierarchy.
 
 export { Neev } from "./client.js";

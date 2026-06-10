@@ -9,10 +9,10 @@
  *
  * This is a minimal hand-rolled tool-calling loop (no agent framework) so the
  * tool execution can stream; it talks to the OpenAI-compatible Neev inference
- * endpoint directly and needs only `@neev/sdk`.
+ * endpoint directly and needs only `@neevcloud/sdk`.
  *
  * Install:
- *   npm install @neev/sdk
+ *   npm install @neevcloud/sdk
  *
  * Run:
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
@@ -21,7 +21,7 @@
  * NEEV_API_KEY covers both the sandbox and (by fallback) the model; set
  * NEEV_INFERENCE_API_KEY if your inference key differs.
  */
-import { Neev } from "@neev/sdk";
+import { Neev } from "@neevcloud/sdk";
 import { NEEV_INFERENCE_BASE_URL, NEEV_MODEL, neevInferenceApiKey } from "./model.js";
 
 // The task the model solves by running shell in the sandbox.

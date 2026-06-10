@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a capability or improvement for @neev/sdk
+description: Suggest a capability or improvement for @neevcloud/sdk
 labels: [enhancement]
 body:
   - type: textarea

@@ -1,7 +1,7 @@
 /**
  * Shared, framework-agnostic helper used by the agent examples in this folder.
  *
- * `SandboxCodeExecutor` wraps `@neev/sdk` and exposes two capabilities an agent
+ * `SandboxCodeExecutor` wraps `@neevcloud/sdk` and exposes two capabilities an agent
  * can call as tools: run Python and run shell commands inside a gVisor-isolated
  * Neev sandbox. It provisions a single sandbox lazily on first use and reuses it
  * across calls, then tears it down on `cleanup()`.
@@ -9,7 +9,7 @@
  * The same executor instance is passed to the LangChain, Genkit, and Vercel AI
  * SDK examples so each file only contains the framework-specific wiring.
  */
-import { Neev, type Sandbox } from "@neev/sdk";
+import { Neev, type Sandbox } from "@neevcloud/sdk";
 
 // The buffered output of one sandbox command, shaped for an LLM to read.
 export interface RunResult {
