@@ -40,6 +40,7 @@ export NEEV_REGION=as-dev-1
 | [`streaming-exec.ts`](./streaming-exec.ts) | `sandbox.exec(cmd, { stream: true })` — output streamed line-by-line as it is produced | `npx tsx examples/streaming-exec.ts` |
 | [`parallel-fanout.ts`](./parallel-fanout.ts) | Several isolated sandboxes run a map/reduce concurrently; reads `metrics()` | `npx tsx examples/parallel-fanout.ts` |
 | [`sandbox-metrics.ts`](./sandbox-metrics.ts) | `sandbox.metrics()` polled under CPU load | `npx tsx examples/sandbox-metrics.ts` |
+| [`pause-resume.ts`](./pause-resume.ts) | Create → write a file → pause → resume → re-read it; reports whether the workspace survives a pause/resume cycle | `npx tsx examples/pause-resume.ts` |
 
 ## Examples — with an AI model
 
