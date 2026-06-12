@@ -38,15 +38,6 @@ The SDK follows a hybrid model so it can cover endpoints whether or not they hav
 
 Both paths run over a single shared `dispatch` (`src/http.ts`): bearer auth, per-request timeout, and exponential-backoff retries on network errors / 429 / 5xx.
 
-### Adding or migrating a service
-
-Specs are vendored into this public repo **one at a time**:
-
-1. Copy the service's `apis/openapi.yaml` to `specs/<service>.yaml`.
-2. Run `pnpm gen` → generates `src/generated/<service>.ts`.
-3. Hand-write the resource wrapper (a `src/resources/<service>.ts` + any handle classes) using `ctx.createTypedClient<paths>()` and the `unwrap` / `ensureOk` helpers.
-4. Until a spec exists, a resource may use `ctx.raw.request<T>()` with hand-written types; migrate it to the typed client when the spec lands.
-
 ## Code conventions
 
 - **Generated code is not edited by hand.** `src/generated/` is produced by `pnpm gen` from the vendored specs. To change types, update the spec source and regenerate.
