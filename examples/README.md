@@ -36,7 +36,6 @@ export NEEV_REGION=as-dev-1
 | File | What it shows | Run |
 |------|---------------|-----|
 | [`create-sandbox.ts`](./create-sandbox.ts) | Lifecycle: create → wait for Ready → metrics → pause → delete | `npx tsx examples/create-sandbox.ts` |
-| [`create-sandbox-with-ttl.ts`](./create-sandbox-with-ttl.ts) | Create with `lifecycle.ttl_seconds` so the sandbox auto-expires | `npx tsx examples/create-sandbox-with-ttl.ts` |
 | [`snapshot-fork-restore.ts`](./snapshot-fork-restore.ts) | Snapshot a sandbox → fork a new one from it → restore the original in place | `npx tsx examples/snapshot-fork-restore.ts` |
 | [`streaming-exec.ts`](./streaming-exec.ts) | `sandbox.exec(cmd, { stream: true })` — output streamed line-by-line as it is produced | `npx tsx examples/streaming-exec.ts` |
 | [`parallel-fanout.ts`](./parallel-fanout.ts) | Several isolated sandboxes run a map/reduce concurrently; reads `metrics()` | `npx tsx examples/parallel-fanout.ts` |
@@ -79,13 +78,7 @@ npx tsx examples/create-sandbox.ts
 ```
 → `created … (phase: Pending)` → `ready at https://….sandboxes.<region>…` → `metric series: …` → `paused …` → `deleted`.
 
-**1b. Create with an auto-shutdown TTL**
-```sh
-npx tsx examples/create-sandbox-with-ttl.ts
-```
-→ `created … auto-expires ~1h from now` → `ready at …`. The sandbox is reclaimed by the platform once the TTL elapses, with no explicit delete.
-
-**1c. Snapshot, fork & restore**
+**1b. Snapshot, fork & restore**
 ```sh
 npx tsx examples/snapshot-fork-restore.ts
 ```

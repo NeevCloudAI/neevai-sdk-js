@@ -326,7 +326,6 @@ export interface components {
             env?: components["schemas"]["EnvVar"][];
             resources?: components["schemas"]["SandboxResources"];
             egress?: components["schemas"]["SandboxEgressConfig"];
-            lifecycle?: components["schemas"]["SandboxLifecycleConfig"];
             /**
              * @description Catalogue template id (e.g. sb-ubuntu-26-04-minimal). The server
              *     validates the template exists and is active, then provisions the
@@ -427,19 +426,6 @@ export interface components {
         ForkSandboxRequest: {
             /** @description Name for the new forked sandbox. Must be unique within the project. */
             name: string;
-        };
-        /**
-         * @description Optional auto-shutdown policy. When ttl_seconds is set the sandbox is
-         *     shut down roughly that many seconds after creation; omit for no expiry.
-         *     Enforced by the agent-sandbox controller; not renewed on activity.
-         */
-        SandboxLifecycleConfig: {
-            /**
-             * Format: int64
-             * @description Seconds from creation after which the sandbox auto-expires. Omit for no expiry.
-             * @example 3600
-             */
-            ttl_seconds?: number;
         };
         /** @description Network egress configuration rules for the sandbox. */
         SandboxEgressConfig: {

@@ -153,13 +153,13 @@ export class Sandboxes {
   // getSnapshot until its status is Ready before restoring or forking from it.
   async createSnapshot(
     id: string,
-    params: CreateSnapshotParams,
+    params: CreateSnapshotParams = {},
     scope?: Scope,
   ): Promise<SnapshotData> {
     const { orgId, projectId } = this.ctx.resolveScope(scope);
     const res = await this.api.POST(SNAPSHOTS, {
       params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
-      body: params,
+      body: { ...params, include_memory: false },
     });
     return unwrap<SnapshotData>(res);
   }

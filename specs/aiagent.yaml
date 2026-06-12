@@ -547,7 +547,6 @@ components:
         env: {type: array, items: {$ref: '#/components/schemas/EnvVar'}}
         resources: {$ref: '#/components/schemas/SandboxResources'}
         egress: {$ref: '#/components/schemas/SandboxEgressConfig'}
-        lifecycle: {$ref: '#/components/schemas/SandboxLifecycleConfig'}
         sandbox_template_id:
           type: string
           minLength: 1
@@ -656,20 +655,6 @@ components:
           maxLength: 63
           pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
           description: Name for the new forked sandbox. Must be unique within the project.
-    SandboxLifecycleConfig:
-      type: object
-      additionalProperties: false
-      description: |
-        Optional auto-shutdown policy. When ttl_seconds is set the sandbox is
-        shut down roughly that many seconds after creation; omit for no expiry.
-        Enforced by the agent-sandbox controller; not renewed on activity.
-      properties:
-        ttl_seconds:
-          type: integer
-          format: int64
-          minimum: 1
-          description: Seconds from creation after which the sandbox auto-expires. Omit for no expiry.
-          example: 3600
     SandboxEgressConfig:
       type: object
       description: Network egress configuration rules for the sandbox.

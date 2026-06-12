@@ -7,7 +7,7 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 
 **Available today**
 
-- **`neev.sandboxes`** — full agent-sandbox lifecycle: create (with an optional auto-shutdown TTL), list, get, pause, resume, delete, live metrics, plus snapshots, restore, and fork. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
+- **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, live metrics, plus snapshots, restore, and fork. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
 - **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is required when creating a sandbox.
 
 **Coming next**
@@ -82,7 +82,7 @@ await neev.sandboxes.delete(id);
 const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
 
 // Snapshots, restore, and fork (see "Snapshots, fork & restore" below).
-const snap = await neev.sandboxes.createSnapshot(id, { include_memory: false });
+const snap = await neev.sandboxes.createSnapshot(id, { name: "checkpoint" });
 await neev.sandboxes.listSnapshots(id);
 await neev.sandboxes.restore(id, snap.id);          // restore in place
 const fork = await neev.sandboxes.fork(id, "my-fork"); // new sandbox from a snapshot
@@ -98,7 +98,6 @@ const sandbox = await neev.sandboxes.create({
   name: "my-agent",
   sandbox_template_id: "sb-ubuntu-26-04-minimal",
   region: "as-south-1", // production region
-  lifecycle: { ttl_seconds: 3600 }, // optional: auto-shut-down after 1h; omit for no expiry
 });
 
 // Or discover what's available first.
@@ -201,8 +200,8 @@ Capture a sandbox's state as a **snapshot**, then **restore** the same sandbox t
 ```ts
 const sandbox = await neev.sandboxes.get(id);
 
-// Capture state (filesystem today; memory once the platform supports it).
-const pending = await sandbox.snapshot({ include_memory: false, name: "checkpoint" });
+// Capture the sandbox's filesystem state.
+const pending = await sandbox.snapshot({ name: "checkpoint" });
 let snap = await neev.sandboxes.getSnapshot(pending.id);
 while (snap.status === "Pending" || snap.status === "Running") {
   await new Promise((r) => setTimeout(r, 2000));

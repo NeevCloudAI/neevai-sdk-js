@@ -184,7 +184,7 @@ export class Sandbox {
 
   // Captures a snapshot of this sandbox. The result starts Pending; poll the
   // snapshot (via sandboxes.getSnapshot) until Ready before restoring or forking.
-  async snapshot(params: CreateSnapshotParams = { include_memory: false }): Promise<SnapshotData> {
+  async snapshot(params: CreateSnapshotParams = {}): Promise<SnapshotData> {
     return this.sandboxes.createSnapshot(this.id, params, this.scope);
   }
 

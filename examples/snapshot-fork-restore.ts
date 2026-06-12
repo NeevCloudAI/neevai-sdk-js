@@ -38,8 +38,8 @@ async function main(): Promise<void> {
   await sandbox.files.write("state.txt", "captured-at-snapshot");
   console.log(`source ${sandbox.id} ready with state written`);
 
-  // Capture a snapshot (filesystem today; memory once supported) and wait for it.
-  const pending = await sandbox.snapshot({ include_memory: false, name: "demo-snap" });
+  // Capture a filesystem snapshot and wait for it to become Ready.
+  const pending = await sandbox.snapshot({ name: "demo-snap" });
   const snapshot = await waitForSnapshot(pending.id);
   console.log(`snapshot ${snapshot.id} ready (${snapshot.size_bytes ?? "?"} bytes)`);
 

@@ -120,30 +120,18 @@ describe("sandboxes resource", () => {
     expect(sb.templateId).toBeNull();
     expect(sb.resources).toBeUndefined();
   });
-
-  it("forwards lifecycle.ttl_seconds in the create body", async () => {
-    const { neev, calls } = client([json(201, sandboxData())]);
-    await neev.sandboxes.create({
-      name: "ttl-demo",
-      sandbox_template_id: "sb-ubuntu-26-04-minimal",
-      lifecycle: { ttl_seconds: 3600 },
-    });
-    expect(calls[0]?.body).toMatchObject({ lifecycle: { ttl_seconds: 3600 } });
-  });
 });
 
 describe("sandbox snapshots, restore, and fork", () => {
   it("creates a snapshot and posts the request body", async () => {
     const { neev, calls } = client([json(202, snapshotData({ name: "snap-1" }))]);
-    const snap = await neev.sandboxes.createSnapshot("sb-1", {
-      include_memory: false,
-      name: "snap-1",
-    });
+    const snap = await neev.sandboxes.createSnapshot("sb-1", { name: "snap-1" });
     expect(snap.id).toBe("22222222-2222-2222-2222-222222222222");
     expect(snap.status).toBe("Pending");
     expect(calls[0]?.method).toBe("POST");
     expect(calls[0]?.url).toContain("/sandboxes/sb-1/snapshots");
-    expect(calls[0]?.body).toEqual({ include_memory: false, name: "snap-1" });
+    // The caller passes only user-facing fields; the SDK fills the rest.
+    expect(calls[0]?.body).toEqual({ name: "snap-1", include_memory: false });
   });
 
   it("lists the snapshots of a sandbox", async () => {
