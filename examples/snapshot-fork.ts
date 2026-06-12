@@ -38,16 +38,21 @@ async function waitForSnapshot(id: string, timeoutMs = 120_000): Promise<Snapsho
   }
 }
 
-// Read FILE from a Ready sandbox and report whether it matches what was written.
-// A 404 means the workspace did not carry the file across the snapshot/fork.
+// Inspect a Ready sandbox two ways and report whether FILE survived: an `ls -la`
+// via exec (so the workspace contents are printed verbatim) and a direct file
+// read (so a missing file shows up as a 404 and a changed file as a content
+// mismatch).
 async function checkFile(sandbox: Sandbox, label: string): Promise<void> {
+  const ls = await sandbox.exec(["sh", "-c", "ls -la"]);
+  log(`  [${label}] ls -la (exit ${ls.exitCode}):`);
+  for (const line of ls.stdout.trimEnd().split("\n")) log(`      ${line}`);
   try {
     const got = await sandbox.files.readText(FILE);
-    log(`  ${label}: content = ${JSON.stringify(got.trim())}`);
+    log(`  [${label}] read ${FILE} = ${JSON.stringify(got.trim())}`);
     log(
       got === CONTENT
         ? `  RESULT (${label}): file survived ✅`
-        : `  RESULT (${label}): file changed ⚠️`,
+        : `  RESULT (${label}): file exists but content changed ⚠️`,
     );
   } catch (err) {
     if (!(err instanceof NotFoundError)) throw err;
