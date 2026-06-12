@@ -2,15 +2,14 @@ openapi: 3.0.3
 info:
   title: AI Agent Service API
   description: |
-    Manages sandboxes for the AI Supercloud platform. v1 scope is the
-    sandbox lifecycle (create, list, get, delete, pause/resume) plus the
-    live-health metrics readout. File ops, exec, and secrets are out of
-    scope for v1.
-  version: 0.1.0
+    Manages sandboxes for the AI Supercloud platform. v1beta1 scope covers
+    sandbox lifecycle (create, list, get, delete, pause/resume), live-health
+    metrics, and memory snapshots (create, list, get, delete,
+    restore, fork, from_snapshot create).
+  version: 0.2.0
 servers:
-  - url: "https://agent.{env}.ai.neevcloud.com"
-    description: |
-      Agent Service base URL. `env` selects the deployment environment.
+  - url: https://api.{env}.ai.neevcloud.com/agent
+    description: Consolidated public API gateway
     variables:
       env:
         default: dev
@@ -102,17 +101,29 @@ paths:
     post:
       tags: [Sandboxes]
       summary: Pause a sandbox (stop billable runtime; preserve disks)
+      description: |
+        When `preserve_memory` is true the sandbox's full state (process memory
+        + filesystem) is captured as an implicit snapshot before the pod is
+        terminated. The snapshot is retained for the duration of the paused
+        state and consumed automatically on the next `resume`. When false
+        (default) the existing volume-only behaviour applies.
       operationId: pauseSandbox
       parameters:
         - {$ref: '#/components/parameters/OrgID'}
         - {$ref: '#/components/parameters/ProjectID'}
         - {$ref: '#/components/parameters/SandboxID'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PauseSandboxRequest'}
       responses:
         "200":
           description: Sandbox paused
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Sandbox'}
+        "400": {$ref: '#/components/responses/BadRequest'}
         "401": {$ref: '#/components/responses/Unauthorized'}
         "403": {$ref: '#/components/responses/Forbidden'}
         "404": {$ref: '#/components/responses/NotFound'}
@@ -121,6 +132,10 @@ paths:
     post:
       tags: [Sandboxes]
       summary: Resume a paused sandbox
+      description: |
+        Restores a paused sandbox. When the sandbox was paused with
+        `preserve_memory=true` it resumes from the implicit memory snapshot;
+        otherwise it cold-starts from the original image.
       operationId: resumeSandbox
       parameters:
         - {$ref: '#/components/parameters/OrgID'}
@@ -135,6 +150,152 @@ paths:
         "401": {$ref: '#/components/responses/Unauthorized'}
         "403": {$ref: '#/components/responses/Forbidden'}
         "404": {$ref: '#/components/responses/NotFound'}
+        "500": {$ref: '#/components/responses/InternalServerError'}
+  # --- Sandbox Memory Snapshots ---
+  /api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/snapshots:
+    get:
+      tags: [Snapshots]
+      summary: List snapshots taken from a sandbox
+      description: Returns a paginated list of snapshots taken from this sandbox.
+      operationId: listSandboxSnapshots
+      parameters:
+        - {$ref: '#/components/parameters/OrgID'}
+        - {$ref: '#/components/parameters/ProjectID'}
+        - {$ref: '#/components/parameters/SandboxID'}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        "200":
+          description: Paginated list of snapshots
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SnapshotListResponse'}
+        "401": {$ref: '#/components/responses/Unauthorized'}
+        "403": {$ref: '#/components/responses/Forbidden'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "500": {$ref: '#/components/responses/InternalServerError'}
+    post:
+      tags: [Snapshots]
+      summary: Create a snapshot of a sandbox
+      description: |
+        Captures the full sandbox state (FS + process memory by default).
+        Returns immediately with `status: Pending`; poll `GET /snapshots/{snapshot_id}`
+        until `status: Ready`.
+      operationId: createSandboxSnapshot
+      parameters:
+        - {$ref: '#/components/parameters/OrgID'}
+        - {$ref: '#/components/parameters/ProjectID'}
+        - {$ref: '#/components/parameters/SandboxID'}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSnapshotRequest'}
+      responses:
+        "202":
+          description: Snapshot accepted (status=Pending)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Snapshot'}
+        "400": {$ref: '#/components/responses/BadRequest'}
+        "401": {$ref: '#/components/responses/Unauthorized'}
+        "403": {$ref: '#/components/responses/Forbidden'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "500": {$ref: '#/components/responses/InternalServerError'}
+  /api/v1beta1/orgs/{org_id}/projects/{project_id}/snapshots/{snapshot_id}:
+    get:
+      tags: [Snapshots]
+      summary: Get snapshot metadata
+      description: Returns snapshot metadata including current status and storage URI once ready.
+      operationId: getSnapshot
+      parameters:
+        - {$ref: '#/components/parameters/OrgID'}
+        - {$ref: '#/components/parameters/ProjectID'}
+        - {$ref: '#/components/parameters/SnapshotID'}
+      responses:
+        "200":
+          description: Snapshot details
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Snapshot'}
+        "401": {$ref: '#/components/responses/Unauthorized'}
+        "403": {$ref: '#/components/responses/Forbidden'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "500": {$ref: '#/components/responses/InternalServerError'}
+    delete:
+      tags: [Snapshots]
+      summary: Delete a snapshot
+      description: Deletes the snapshot metadata row. Blob GC is handled asynchronously by the platform.
+      operationId: deleteSnapshot
+      parameters:
+        - {$ref: '#/components/parameters/OrgID'}
+        - {$ref: '#/components/parameters/ProjectID'}
+        - {$ref: '#/components/parameters/SnapshotID'}
+      responses:
+        "204": {description: Snapshot deleted}
+        "401": {$ref: '#/components/responses/Unauthorized'}
+        "403": {$ref: '#/components/responses/Forbidden'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "500": {$ref: '#/components/responses/InternalServerError'}
+  /api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/restore:
+    post:
+      tags: [Snapshots]
+      summary: Restore a sandbox from a snapshot
+      description: |
+        Same-sandbox rollback. Stops the sandbox's processes, replaces FS+memory
+        with the snapshot's state, and restarts. The sandbox keeps its UUID,
+        name, and network identity. Destructive — current state is overwritten
+        and not auto-archived.
+      operationId: restoreSandbox
+      parameters:
+        - {$ref: '#/components/parameters/OrgID'}
+        - {$ref: '#/components/parameters/ProjectID'}
+        - {$ref: '#/components/parameters/SandboxID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RestoreSandboxRequest'}
+      responses:
+        "200":
+          description: Sandbox restore accepted; check `phase` for progress.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Sandbox'}
+        "400": {$ref: '#/components/responses/BadRequest'}
+        "401": {$ref: '#/components/responses/Unauthorized'}
+        "403": {$ref: '#/components/responses/Forbidden'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "500": {$ref: '#/components/responses/InternalServerError'}
+  /api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/fork:
+    post:
+      tags: [Snapshots]
+      summary: Fork a sandbox into a new sandbox
+      description: |
+        Atomically snapshots the current sandbox state and creates a new sandbox
+        from that snapshot. The original sandbox keeps running. Returns the new
+        sandbox object.
+      operationId: forkSandbox
+      parameters:
+        - {$ref: '#/components/parameters/OrgID'}
+        - {$ref: '#/components/parameters/ProjectID'}
+        - {$ref: '#/components/parameters/SandboxID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ForkSandboxRequest'}
+      responses:
+        "201":
+          description: New forked sandbox
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Sandbox'}
+        "400": {$ref: '#/components/responses/BadRequest'}
+        "401": {$ref: '#/components/responses/Unauthorized'}
+        "403": {$ref: '#/components/responses/Forbidden'}
+        "404": {$ref: '#/components/responses/NotFound'}
+        "409": {$ref: '#/components/responses/Conflict'}
         "500": {$ref: '#/components/responses/InternalServerError'}
   /api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/metrics:
     get:
@@ -241,6 +402,12 @@ components:
       in: path
       required: true
       description: Sandbox UUID.
+      schema: {type: string, format: uuid}
+    SnapshotID:
+      name: snapshot_id
+      in: path
+      required: true
+      description: Snapshot UUID.
       schema: {type: string, format: uuid}
     Page:
       name: page
@@ -363,7 +530,7 @@ components:
         updated_at: {type: string, format: date-time}
     CreateSandboxRequest:
       type: object
-      required: [name, sandbox_template_id]
+      required: [name]
       properties:
         name:
           type: string
@@ -377,21 +544,10 @@ components:
             characters.
           example: my-sandbox
         region: {type: string, description: "Region to provision in; omit to use the platform default.", example: "dev"}
-        image:
-          type: string
-          minLength: 1
-          description: |
-            Ignored when sandbox_template_id is set. Reserved for future BYOI;
-            the server resolves the container image from the selected template.
-        command:
-          type: array
-          items: {type: string}
-          description: |
-            Ignored when sandbox_template_id is set. The server uses the
-            catalogue template default command.
         env: {type: array, items: {$ref: '#/components/schemas/EnvVar'}}
         resources: {$ref: '#/components/schemas/SandboxResources'}
         egress: {$ref: '#/components/schemas/SandboxEgressConfig'}
+        lifecycle: {$ref: '#/components/schemas/SandboxLifecycleConfig'}
         sandbox_template_id:
           type: string
           minLength: 1
@@ -400,6 +556,120 @@ components:
             Catalogue template id (e.g. sb-ubuntu-26-04-minimal). The server
             validates the template exists and is active, then provisions the
             sandbox image and command from that template.
+        from_snapshot:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            When set, the new sandbox is restored from this snapshot instead of
+            cold-starting from the image. Snapshot must belong to the same
+            project. Sizing and region must match the snapshot's origin.
+    PauseSandboxRequest:
+      type: object
+      description: Optional body for the pause endpoint.
+      properties:
+        preserve_memory:
+          type: boolean
+          default: true
+          description: |
+            When true, capture FS+process memory as an implicit snapshot before
+            terminating the pod. The snapshot is auto-consumed on the next resume.
+    # --- Snapshot schemas ---
+    SnapshotStatus:
+      type: string
+      description: Lifecycle phase of a snapshot.
+      enum: [Pending, Running, Ready, Failed]
+    Snapshot:
+      type: object
+      required: [id, sandbox_id, org_id, project_id, status, include_memory, source_region, created_at, updated_at]
+      description: Metadata for a sandbox memory/filesystem snapshot.
+      properties:
+        id: {type: string, format: uuid, description: Snapshot UUID.}
+        sandbox_id: {type: string, format: uuid, description: UUID of the source sandbox.}
+        org_id: {type: string}
+        project_id: {type: string}
+        name: {type: string, description: Optional customer-supplied name.}
+        status: {$ref: '#/components/schemas/SnapshotStatus'}
+        include_memory:
+          type: boolean
+          description: True = FS+memory captured; false = FS only.
+        source_region: {type: string, description: DP cluster slug where the blob lives.}
+        size_bytes:
+          type: integer
+          format: int64
+          nullable: true
+          description: Uncompressed blob size. Null until status=Ready.
+        error_message:
+          type: string
+          nullable: true
+          description: Failure detail. Null unless status=Failed.
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the platform will GC this snapshot. Null = no expiry.
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SnapshotListResponse:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Snapshot'}}
+        total: {type: integer}
+        page: {type: integer}
+        limit: {type: integer}
+    CreateSnapshotRequest:
+      type: object
+      description: Optional body for POST .../snapshots.
+      properties:
+        name:
+          type: string
+          description: Optional human-readable name for this snapshot.
+        include_memory:
+          type: boolean
+          default: false
+          description: Capture process memory in addition to filesystem. Currently forced to false (RootFS only); memory capture is not yet supported.
+        retain_for:
+          type: string
+          description: |
+            Duration string (e.g. "720h" = 30 days) controlling snapshot TTL.
+            "0" or omitted means no expiry.
+    RestoreSandboxRequest:
+      type: object
+      required: [snapshot_id]
+      description: Body for POST .../sandboxes/{id}/restore.
+      properties:
+        snapshot_id:
+          type: string
+          format: uuid
+          description: |
+            UUID of the snapshot to restore from. Must belong to this sandbox
+            or another sandbox in the same project.
+    ForkSandboxRequest:
+      type: object
+      required: [name]
+      description: Body for POST .../sandboxes/{id}/fork.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+          description: Name for the new forked sandbox. Must be unique within the project.
+    SandboxLifecycleConfig:
+      type: object
+      additionalProperties: false
+      description: |
+        Optional auto-shutdown policy. When ttl_seconds is set the sandbox is
+        shut down roughly that many seconds after creation; omit for no expiry.
+        Enforced by the agent-sandbox controller; not renewed on activity.
+      properties:
+        ttl_seconds:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Seconds from creation after which the sandbox auto-expires. Omit for no expiry.
+          example: 3600
     SandboxEgressConfig:
       type: object
       description: Network egress configuration rules for the sandbox.

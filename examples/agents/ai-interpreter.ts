@@ -4,8 +4,8 @@
  * NeevCloud `gpt-oss-120b` is given a `run_shell` tool backed by a Neev sandbox.
  * When the model calls it, the command runs in the gVisor-isolated sandbox and
  * its stdout/stderr **stream to your terminal as they are produced** (via
- * `sandbox.execStream`), not buffered to the end — so you watch the AI's code
- * run live. The full output is then fed back so the model can finish the task.
+ * `sandbox.exec(cmd, { stream: true })`), not buffered to the end — so you watch
+ * the AI's code run live. The full output is then fed back so the model can finish.
  *
  * This is a minimal hand-rolled tool-calling loop (no agent framework) so the
  * tool execution can stream; it talks to the OpenAI-compatible Neev inference
@@ -147,7 +147,8 @@ async function main(): Promise<void> {
           let stdout = "";
           let stderr = "";
           let exitCode = 0;
-          for await (const event of sandbox.execStream(["sh", "-c", command], {
+          for await (const event of sandbox.exec(["sh", "-c", command], {
+            stream: true,
             timeoutMs: 60_000,
           })) {
             if (event.type === "stdout") {

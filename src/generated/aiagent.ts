@@ -49,7 +49,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pause a sandbox (stop billable runtime; preserve disks) */
+        /**
+         * Pause a sandbox (stop billable runtime; preserve disks)
+         * @description When `preserve_memory` is true the sandbox's full state (process memory
+         *     + filesystem) is captured as an implicit snapshot before the pod is
+         *     terminated. The snapshot is retained for the duration of the paused
+         *     state and consumed automatically on the next `resume`. When false
+         *     (default) the existing volume-only behaviour applies.
+         */
         post: operations["pauseSandbox"];
         delete?: never;
         options?: never;
@@ -66,8 +73,108 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resume a paused sandbox */
+        /**
+         * Resume a paused sandbox
+         * @description Restores a paused sandbox. When the sandbox was paused with
+         *     `preserve_memory=true` it resumes from the implicit memory snapshot;
+         *     otherwise it cold-starts from the original image.
+         */
         post: operations["resumeSandbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List snapshots taken from a sandbox
+         * @description Returns a paginated list of snapshots taken from this sandbox.
+         */
+        get: operations["listSandboxSnapshots"];
+        put?: never;
+        /**
+         * Create a snapshot of a sandbox
+         * @description Captures the full sandbox state (FS + process memory by default).
+         *     Returns immediately with `status: Pending`; poll `GET /snapshots/{snapshot_id}`
+         *     until `status: Ready`.
+         */
+        post: operations["createSandboxSnapshot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1beta1/orgs/{org_id}/projects/{project_id}/snapshots/{snapshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get snapshot metadata
+         * @description Returns snapshot metadata including current status and storage URI once ready.
+         */
+        get: operations["getSnapshot"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a snapshot
+         * @description Deletes the snapshot metadata row. Blob GC is handled asynchronously by the platform.
+         */
+        delete: operations["deleteSnapshot"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a sandbox from a snapshot
+         * @description Same-sandbox rollback. Stops the sandbox's processes, replaces FS+memory
+         *     with the snapshot's state, and restarts. The sandbox keeps its UUID,
+         *     name, and network identity. Destructive — current state is overwritten
+         *     and not auto-archived.
+         */
+        post: operations["restoreSandbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fork a sandbox into a new sandbox
+         * @description Atomically snapshots the current sandbox state and creates a new sandbox
+         *     from that snapshot. The original sandbox keeps running. Returns the new
+         *     sandbox object.
+         */
+        post: operations["forkSandbox"];
         delete?: never;
         options?: never;
         head?: never;
@@ -216,25 +323,123 @@ export interface components {
              * @example dev
              */
             region?: string;
-            /**
-             * @description Ignored when sandbox_template_id is set. Reserved for future BYOI;
-             *     the server resolves the container image from the selected template.
-             */
-            image?: string;
-            /**
-             * @description Ignored when sandbox_template_id is set. The server uses the
-             *     catalogue template default command.
-             */
-            command?: string[];
             env?: components["schemas"]["EnvVar"][];
             resources?: components["schemas"]["SandboxResources"];
             egress?: components["schemas"]["SandboxEgressConfig"];
+            lifecycle?: components["schemas"]["SandboxLifecycleConfig"];
             /**
              * @description Catalogue template id (e.g. sb-ubuntu-26-04-minimal). The server
              *     validates the template exists and is active, then provisions the
              *     sandbox image and command from that template.
              */
-            sandbox_template_id: string;
+            sandbox_template_id?: string;
+            /**
+             * Format: uuid
+             * @description When set, the new sandbox is restored from this snapshot instead of
+             *     cold-starting from the image. Snapshot must belong to the same
+             *     project. Sizing and region must match the snapshot's origin.
+             */
+            from_snapshot?: string | null;
+        };
+        /** @description Optional body for the pause endpoint. */
+        PauseSandboxRequest: {
+            /**
+             * @description When true, capture FS+process memory as an implicit snapshot before
+             *     terminating the pod. The snapshot is auto-consumed on the next resume.
+             * @default true
+             */
+            preserve_memory: boolean;
+        };
+        /**
+         * @description Lifecycle phase of a snapshot.
+         * @enum {string}
+         */
+        SnapshotStatus: "Pending" | "Running" | "Ready" | "Failed";
+        /** @description Metadata for a sandbox memory/filesystem snapshot. */
+        Snapshot: {
+            /**
+             * Format: uuid
+             * @description Snapshot UUID.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description UUID of the source sandbox.
+             */
+            sandbox_id: string;
+            org_id: string;
+            project_id: string;
+            /** @description Optional customer-supplied name. */
+            name?: string;
+            status: components["schemas"]["SnapshotStatus"];
+            /** @description True = FS+memory captured; false = FS only. */
+            include_memory: boolean;
+            /** @description DP cluster slug where the blob lives. */
+            source_region: string;
+            /**
+             * Format: int64
+             * @description Uncompressed blob size. Null until status=Ready.
+             */
+            size_bytes?: number | null;
+            /** @description Failure detail. Null unless status=Failed. */
+            error_message?: string | null;
+            /**
+             * Format: date-time
+             * @description When the platform will GC this snapshot. Null = no expiry.
+             */
+            expires_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        SnapshotListResponse: {
+            items: components["schemas"]["Snapshot"][];
+            total: number;
+            page: number;
+            limit: number;
+        };
+        /** @description Optional body for POST .../snapshots. */
+        CreateSnapshotRequest: {
+            /** @description Optional human-readable name for this snapshot. */
+            name?: string;
+            /**
+             * @description Capture process memory in addition to filesystem. Currently forced to false (RootFS only); memory capture is not yet supported.
+             * @default false
+             */
+            include_memory: boolean;
+            /**
+             * @description Duration string (e.g. "720h" = 30 days) controlling snapshot TTL.
+             *     "0" or omitted means no expiry.
+             */
+            retain_for?: string;
+        };
+        /** @description Body for POST .../sandboxes/{id}/restore. */
+        RestoreSandboxRequest: {
+            /**
+             * Format: uuid
+             * @description UUID of the snapshot to restore from. Must belong to this sandbox
+             *     or another sandbox in the same project.
+             */
+            snapshot_id: string;
+        };
+        /** @description Body for POST .../sandboxes/{id}/fork. */
+        ForkSandboxRequest: {
+            /** @description Name for the new forked sandbox. Must be unique within the project. */
+            name: string;
+        };
+        /**
+         * @description Optional auto-shutdown policy. When ttl_seconds is set the sandbox is
+         *     shut down roughly that many seconds after creation; omit for no expiry.
+         *     Enforced by the agent-sandbox controller; not renewed on activity.
+         */
+        SandboxLifecycleConfig: {
+            /**
+             * Format: int64
+             * @description Seconds from creation after which the sandbox auto-expires. Omit for no expiry.
+             * @example 3600
+             */
+            ttl_seconds?: number;
         };
         /** @description Network egress configuration rules for the sandbox. */
         SandboxEgressConfig: {
@@ -370,6 +575,8 @@ export interface components {
         ProjectID: string;
         /** @description Sandbox UUID. */
         SandboxID: string;
+        /** @description Snapshot UUID. */
+        SnapshotID: string;
         Page: number;
         SandboxTemplateID: string;
         Limit: number;
@@ -519,7 +726,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PauseSandboxRequest"];
+            };
+        };
         responses: {
             /** @description Sandbox paused */
             200: {
@@ -530,6 +741,7 @@ export interface operations {
                     "application/json": components["schemas"]["Sandbox"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -564,6 +776,209 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    listSandboxSnapshots: {
+        parameters: {
+            query?: {
+                page?: components["parameters"]["Page"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description Organization identifier. */
+                org_id: components["parameters"]["OrgID"];
+                /** @description Project identifier. */
+                project_id: components["parameters"]["ProjectID"];
+                /** @description Sandbox UUID. */
+                sandbox_id: components["parameters"]["SandboxID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated list of snapshots */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    createSandboxSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization identifier. */
+                org_id: components["parameters"]["OrgID"];
+                /** @description Project identifier. */
+                project_id: components["parameters"]["ProjectID"];
+                /** @description Sandbox UUID. */
+                sandbox_id: components["parameters"]["SandboxID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateSnapshotRequest"];
+            };
+        };
+        responses: {
+            /** @description Snapshot accepted (status=Pending) */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Snapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    getSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization identifier. */
+                org_id: components["parameters"]["OrgID"];
+                /** @description Project identifier. */
+                project_id: components["parameters"]["ProjectID"];
+                /** @description Snapshot UUID. */
+                snapshot_id: components["parameters"]["SnapshotID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Snapshot details */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Snapshot"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    deleteSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization identifier. */
+                org_id: components["parameters"]["OrgID"];
+                /** @description Project identifier. */
+                project_id: components["parameters"]["ProjectID"];
+                /** @description Snapshot UUID. */
+                snapshot_id: components["parameters"]["SnapshotID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Snapshot deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    restoreSandbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization identifier. */
+                org_id: components["parameters"]["OrgID"];
+                /** @description Project identifier. */
+                project_id: components["parameters"]["ProjectID"];
+                /** @description Sandbox UUID. */
+                sandbox_id: components["parameters"]["SandboxID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreSandboxRequest"];
+            };
+        };
+        responses: {
+            /** @description Sandbox restore accepted; check `phase` for progress. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sandbox"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalServerError"];
+        };
+    };
+    forkSandbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization identifier. */
+                org_id: components["parameters"]["OrgID"];
+                /** @description Project identifier. */
+                project_id: components["parameters"]["ProjectID"];
+                /** @description Sandbox UUID. */
+                sandbox_id: components["parameters"]["SandboxID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForkSandboxRequest"];
+            };
+        };
+        responses: {
+            /** @description New forked sandbox */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sandbox"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalServerError"];
         };
     };

@@ -30,7 +30,7 @@ async function main(): Promise<void> {
   });
   console.log(`created ${sandbox.id} from ${template.id} (phase: ${sandbox.phase})`);
 
-  // Block until the control plane reports the sandbox as Ready.
+  // Block until the platform reports the sandbox as Ready.
   await sandbox.waitUntilReady();
   console.log(`ready at ${sandbox.connectUrl ?? "(no connect url)"}`);
 

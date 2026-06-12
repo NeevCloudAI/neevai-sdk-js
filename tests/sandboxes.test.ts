@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Neev, NotFoundError, Sandbox } from "../src/index.js";
-import { json, mockFetch, sandboxData } from "./helpers.js";
+import { json, mockFetch, sandboxData, snapshotData } from "./helpers.js";
 
 // Builds a client backed by the given queued responses.
 function client(queue: Array<Response | Error>) {
@@ -119,5 +119,95 @@ describe("sandboxes resource", () => {
     const sb = await neev.sandboxes.get("sb-1");
     expect(sb.templateId).toBeNull();
     expect(sb.resources).toBeUndefined();
+  });
+
+  it("forwards lifecycle.ttl_seconds in the create body", async () => {
+    const { neev, calls } = client([json(201, sandboxData())]);
+    await neev.sandboxes.create({
+      name: "ttl-demo",
+      sandbox_template_id: "sb-ubuntu-26-04-minimal",
+      lifecycle: { ttl_seconds: 3600 },
+    });
+    expect(calls[0]?.body).toMatchObject({ lifecycle: { ttl_seconds: 3600 } });
+  });
+});
+
+describe("sandbox snapshots, restore, and fork", () => {
+  it("creates a snapshot and posts the request body", async () => {
+    const { neev, calls } = client([json(202, snapshotData({ name: "snap-1" }))]);
+    const snap = await neev.sandboxes.createSnapshot("sb-1", {
+      include_memory: false,
+      name: "snap-1",
+    });
+    expect(snap.id).toBe("22222222-2222-2222-2222-222222222222");
+    expect(snap.status).toBe("Pending");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toContain("/sandboxes/sb-1/snapshots");
+    expect(calls[0]?.body).toEqual({ include_memory: false, name: "snap-1" });
+  });
+
+  it("lists the snapshots of a sandbox", async () => {
+    const { neev, calls } = client([
+      json(200, {
+        items: [snapshotData(), snapshotData({ id: "snap-b" })],
+        total: 2,
+        page: 1,
+        limit: 50,
+      }),
+    ]);
+    const snaps = await neev.sandboxes.listSnapshots("sb-1");
+    expect(snaps).toHaveLength(2);
+    expect(calls[0]?.url).toContain("/sandboxes/sb-1/snapshots");
+  });
+
+  it("gets and deletes a snapshot by id", async () => {
+    const { neev, calls } = client([
+      json(200, snapshotData({ status: "Ready" })),
+      json(204, undefined),
+    ]);
+    const snap = await neev.sandboxes.getSnapshot("snap-x");
+    expect(snap.status).toBe("Ready");
+    expect(calls[0]?.url).toContain("/snapshots/snap-x");
+    await neev.sandboxes.deleteSnapshot("snap-x");
+    expect(calls[1]?.method).toBe("DELETE");
+  });
+
+  it("restores a sandbox in place from a snapshot", async () => {
+    const { neev, calls } = client([json(200, sandboxData({ phase: "Pending" }))]);
+    const restored = await neev.sandboxes.restore("sb-1", "snap-x");
+    expect(restored).toBeInstanceOf(Sandbox);
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toContain("/sandboxes/sb-1/restore");
+    expect(calls[0]?.body).toEqual({ snapshot_id: "snap-x" });
+  });
+
+  it("forks a sandbox into a new named sandbox", async () => {
+    const { neev, calls } = client([json(201, sandboxData({ name: "forked" }))]);
+    const fork = await neev.sandboxes.fork("sb-1", "forked");
+    expect(fork).toBeInstanceOf(Sandbox);
+    expect(fork.name).toBe("forked");
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toContain("/sandboxes/sb-1/fork");
+    expect(calls[0]?.body).toEqual({ name: "forked" });
+  });
+
+  it("exposes snapshot/restore/fork on the Sandbox handle", async () => {
+    const { neev, calls } = client([
+      json(200, sandboxData()), // get
+      json(202, snapshotData()), // snapshot
+      json(200, sandboxData({ phase: "Pending" })), // restore
+      json(201, sandboxData({ name: "child" })), // fork
+    ]);
+    const sb = await neev.sandboxes.get("sb-1");
+    await sb.snapshot();
+    await sb.restore("snap-x");
+    const child = await sb.fork("child");
+    expect(child.name).toBe("child");
+    expect(calls.map((c) => c.url.split("/").pop())).toEqual([
+      "sb-1",
+      "snapshots",
+      "restore",
+      "fork",
+    ]);
   });
 });

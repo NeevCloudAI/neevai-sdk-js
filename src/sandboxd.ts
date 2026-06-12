@@ -86,6 +86,10 @@ export interface ExecOptions {
   stdin?: string;
   // Caller cancellation signal.
   signal?: AbortSignal;
+  // When true, `sandbox.exec` returns a live async-iterable of stdout/stderr/exit
+  // events instead of a buffered ExecResult. Ignored by the lower-level
+  // SandboxConnection methods, which expose buffering and streaming separately.
+  stream?: boolean;
 }
 
 // Buffered result of a command. A non-zero exitCode is NOT an error. stdout and

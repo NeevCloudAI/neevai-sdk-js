@@ -7,7 +7,7 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 
 **Available today**
 
-- **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, and live metrics. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
+- **`neev.sandboxes`** — full agent-sandbox lifecycle: create (with an optional auto-shutdown TTL), list, get, pause, resume, delete, live metrics, plus snapshots, restore, and fork. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
 - **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is required when creating a sandbox.
 
 **Coming next**
@@ -67,7 +67,43 @@ await sandbox.resume();
 await sandbox.delete();
 ```
 
-See [`examples/`](./examples) for runnable scripts.
+### Try it on dev (from a clone)
+
+The package isn't published yet, so run the examples from a clone — `import "@neevcloud/sdk"` resolves to the local build (Node self-referencing), no link step needed.
+
+```sh
+# 1. Install deps and build the SDK (examples import the built dist/).
+pnpm install
+pnpm build
+
+# 2. Point at the dev environment and your dev credentials.
+export NEEV_BASE_URL=https://api.dev.ai.neevcloud.com/agent
+export NEEV_REGION=as-dev-1
+export NEEV_API_KEY=...        # dev sandbox API key
+export NEEV_ORG_ID=...
+export NEEV_PROJECT_ID=...
+
+# 3. Run a pure-SDK example (no model needed).
+npx tsx examples/create-sandbox.ts          # create → ready → metrics → pause → delete
+npx tsx examples/create-sandbox-with-ttl.ts  # create with an auto-shutdown TTL
+npx tsx examples/snapshot-fork-restore.ts    # snapshot → fork → restore
+npx tsx examples/streaming-exec.ts           # exec(cmd, { stream: true }) live output
+```
+
+To run the **AI agent** examples, add an inference key and install that example's extra deps from the repo root (`examples/agents/` shares this package — no separate install dir), then run with `tsx`:
+
+```sh
+export NEEV_INFERENCE_API_KEY=...   # falls back to NEEV_API_KEY if the keys are the same
+
+# ai-interpreter needs no extra deps:
+npx tsx examples/agents/ai-interpreter.ts
+
+# the framework examples each need their own dev deps, e.g. LangChain:
+pnpm add -D @langchain/core @langchain/openai @langchain/langgraph zod
+npx tsx examples/agents/langchain.ts
+```
+
+Re-run `pnpm build` after changing SDK source. The full per-example matrix, expected output, and the other frameworks (Vercel AI, Genkit) are in [`examples/README.md`](./examples/README.md).
 
 ## Usage
 
@@ -80,6 +116,12 @@ await neev.sandboxes.pause(id);
 await neev.sandboxes.resume(id);
 await neev.sandboxes.delete(id);
 const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
+
+// Snapshots, restore, and fork (see "Snapshots, fork & restore" below).
+const snap = await neev.sandboxes.createSnapshot(id, { include_memory: false });
+await neev.sandboxes.listSnapshots(id);
+await neev.sandboxes.restore(id, snap.id);          // restore in place
+const fork = await neev.sandboxes.fork(id, "my-fork"); // new sandbox from a snapshot
 ```
 
 ### Sandbox templates
@@ -92,6 +134,7 @@ const sandbox = await neev.sandboxes.create({
   name: "my-agent",
   sandbox_template_id: "sb-ubuntu-26-04-minimal",
   region: "as-south-1", // production region
+  lifecycle: { ttl_seconds: 3600 }, // optional: auto-shut-down after 1h; omit for no expiry
 });
 
 // Or discover what's available first.
@@ -108,6 +151,9 @@ const sandbox = await neev.sandboxes.get(id);
 await sandbox.refresh();          // re-fetch latest state
 await sandbox.waitUntilReady();   // poll until phase === "Ready"
 await sandbox.pause();
+const snap = await sandbox.snapshot(); // capture this sandbox's state
+await sandbox.restore(snap.id);   // restore this sandbox in place
+const fork = await sandbox.fork("my-fork"); // branch into a new sandbox
 sandbox.data;                     // full raw API record
 ```
 
@@ -168,12 +214,14 @@ const entries = await sandbox.files.list(".", { recursive: true }); // → FileE
 const result = await sandbox.exec(["sh", "-c", "python3 main.py"]); // → { stdout, stderr, exitCode }
 ```
 
-`exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
+By default `exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
 
-To consume output **as it is produced** (long-running commands, live logs), use `execStream` — an async generator that yields `stdout`/`stderr` text chunks the moment the daemon flushes them, then a terminal `exit` event:
+To consume output **as it is produced** (long-running commands, live logs), pass `{ stream: true }`. The same `exec` then returns an async iterable that yields `stdout`/`stderr` text chunks the moment the daemon flushes them, then a terminal `exit` event:
 
 ```ts
-for await (const event of sandbox.execStream(["sh", "-c", "for i in 1 2 3; do echo $i; sleep 1; done"])) {
+for await (const event of sandbox.exec(["sh", "-c", "for i in 1 2 3; do echo $i; sleep 1; done"], {
+  stream: true,
+})) {
   if (event.type === "stdout") process.stdout.write(event.data);
   else if (event.type === "stderr") process.stderr.write(event.data);
   else console.log("exit", event.exitCode); // non-zero is reported here, not thrown
@@ -181,6 +229,31 @@ for await (const event of sandbox.execStream(["sh", "-c", "for i in 1 2 3; do ec
 ```
 
 These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.
+
+### Snapshots, fork & restore
+
+Capture a sandbox's state as a **snapshot**, then **restore** the same sandbox to it or **fork** a brand-new sandbox seeded from it. A snapshot is created `Pending` and must reach `Ready` before it can be restored or forked — poll `getSnapshot` (or read `snapshot.status`):
+
+```ts
+const sandbox = await neev.sandboxes.get(id);
+
+// Capture state (filesystem today; memory once the platform supports it).
+const pending = await sandbox.snapshot({ include_memory: false, name: "checkpoint" });
+let snap = await neev.sandboxes.getSnapshot(pending.id);
+while (snap.status === "Pending" || snap.status === "Running") {
+  await new Promise((r) => setTimeout(r, 2000));
+  snap = await neev.sandboxes.getSnapshot(pending.id);
+}
+
+// Fork a new sandbox from the snapshot, or restore the original in place.
+const fork = await sandbox.fork("my-fork"); // → a new Sandbox handle
+await sandbox.restore(snap.id);             // → this sandbox, restored
+
+await neev.sandboxes.listSnapshots(id);     // enumerate a sandbox's snapshots
+await neev.sandboxes.deleteSnapshot(snap.id);
+```
+
+The full snapshot example is [`examples/snapshot-fork-restore.ts`](./examples/snapshot-fork-restore.ts).
 
 ## Documentation
 

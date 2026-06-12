@@ -6,9 +6,12 @@ import { Sandbox } from "../sandbox.js";
 import type { SandboxConnection } from "../sandboxd.js";
 import type {
   CreateSandboxParams,
+  CreateSnapshotParams,
   SandboxData,
   SandboxListResponse,
   SandboxMetricsResponse,
+  SnapshotData,
+  SnapshotListResponse,
 } from "../types.js";
 
 // Spec path templates for the aiagent sandbox endpoints. openapi-fetch type-checks
@@ -18,6 +21,11 @@ const ITEM = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbo
 const PAUSE = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/pause";
 const RESUME = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/resume";
 const METRICS = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/metrics";
+const SNAPSHOTS =
+  "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/snapshots";
+const SNAPSHOT_ITEM = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/snapshots/{snapshot_id}";
+const RESTORE = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/restore";
+const FORK = "/api/v1beta1/orgs/{org_id}/projects/{project_id}/sandboxes/{sandbox_id}/fork";
 
 // Parameters for listing sandboxes: pagination plus an optional scope override.
 export interface ListSandboxesParams extends Scope {
@@ -139,5 +147,69 @@ export class Sandboxes {
       },
     });
     return unwrap<SandboxMetricsResponse>(res);
+  }
+
+  // Captures a snapshot of a sandbox. The returned snapshot starts Pending; poll
+  // getSnapshot until its status is Ready before restoring or forking from it.
+  async createSnapshot(
+    id: string,
+    params: CreateSnapshotParams,
+    scope?: Scope,
+  ): Promise<SnapshotData> {
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.POST(SNAPSHOTS, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
+      body: params,
+    });
+    return unwrap<SnapshotData>(res);
+  }
+
+  // Lists the snapshots taken from a sandbox.
+  async listSnapshots(id: string, scope?: Scope): Promise<SnapshotData[]> {
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.GET(SNAPSHOTS, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
+    });
+    return unwrap<SnapshotListResponse>(res).items;
+  }
+
+  // Fetches a snapshot's metadata by id (project-scoped, not tied to its source sandbox).
+  async getSnapshot(snapshotId: string, scope?: Scope): Promise<SnapshotData> {
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.GET(SNAPSHOT_ITEM, {
+      params: { path: { org_id: orgId, project_id: projectId, snapshot_id: snapshotId } },
+    });
+    return unwrap<SnapshotData>(res);
+  }
+
+  // Deletes a snapshot and its stored blob.
+  async deleteSnapshot(snapshotId: string, scope?: Scope): Promise<void> {
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.DELETE(SNAPSHOT_ITEM, {
+      params: { path: { org_id: orgId, project_id: projectId, snapshot_id: snapshotId } },
+    });
+    ensureOk(res);
+  }
+
+  // Restores a sandbox in place from one of its snapshots, returning the updated
+  // handle. The snapshot must belong to a sandbox in the same project.
+  async restore(id: string, snapshotId: string, scope?: Scope): Promise<Sandbox> {
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.POST(RESTORE, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
+      body: { snapshot_id: snapshotId },
+    });
+    return new Sandbox(this, unwrap<SandboxData>(res), scope);
+  }
+
+  // Forks a sandbox into a new sandbox seeded from the source's latest snapshot,
+  // returning a handle to the new sandbox.
+  async fork(id: string, name: string, scope?: Scope): Promise<Sandbox> {
+    const { orgId, projectId } = this.ctx.resolveScope(scope);
+    const res = await this.api.POST(FORK, {
+      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
+      body: { name },
+    });
+    return new Sandbox(this, unwrap<SandboxData>(res), scope);
   }
 }

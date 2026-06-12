@@ -22,8 +22,8 @@ So each example file holds only the framework-specific wiring.
 
 **[`ai-interpreter.ts`](./ai-interpreter.ts)** is the highlight: the model writes
 shell, it runs in the sandbox, and its output **streams to your terminal live**
-(via `sandbox.execStream`) as it executes — the "AI writes code, watch it run
-safely" demo. No framework, no extra deps (just `@neevcloud/sdk` + global `fetch`):
+(via `sandbox.exec(cmd, { stream: true })`) as it executes — the "AI writes code,
+watch it run safely" demo. No framework, no extra deps (just `@neevcloud/sdk` + global `fetch`):
 
 ```sh
 npx tsx examples/agents/ai-interpreter.ts
@@ -92,7 +92,7 @@ the sandbox and report the digest. A successful run prints:
 
 (`printf 'neev' | sha256sum`). If you see that digest, the full loop worked:
 model tool-call → code executed in the sandbox → result returned → sandbox
-deleted. Right after the sandbox reaches Ready, its data-plane hostname can take
+deleted. Right after the sandbox reaches Ready, its hostname can take
 a few seconds to resolve, so the first tool call may need a moment — the agent
 loop simply waits and retries on its own.
 

@@ -1,11 +1,12 @@
 /**
  * Stream a command's output from a sandbox as it is produced.
  *
- * `sandbox.execStream(...)` is an async generator: it yields `stdout`/`stderr`
- * text chunks the moment the daemon flushes them, then a terminal `exit` event.
- * This runs a command that prints a line per second and logs each chunk with the
- * elapsed time, so you can see the ~1s spacing — proof the output arrives live
- * rather than all at once at the end (which is what the buffered `exec` returns).
+ * `sandbox.exec(cmd, { stream: true })` returns an async iterable: it yields
+ * `stdout`/`stderr` text chunks the moment the daemon flushes them, then a
+ * terminal `exit` event. (Without `stream: true`, `exec` buffers and resolves to
+ * the full result.) This runs a command that prints a line per second and logs
+ * each chunk with the elapsed time, so the ~1s spacing is visible — proof the
+ * output arrives live rather than all at once at the end.
  *
  * Run (targets the Neev production API by default; override with NEEV_BASE_URL):
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
@@ -41,7 +42,7 @@ async function main(): Promise<void> {
     ];
 
     let exitCode = 0;
-    for await (const event of sandbox.execStream(command, { timeoutMs: 30_000 })) {
+    for await (const event of sandbox.exec(command, { stream: true, timeoutMs: 30_000 })) {
       if (event.type === "stdout") log(`stdout: ${event.data.trimEnd()}`);
       else if (event.type === "stderr") log(`stderr: ${event.data.trimEnd()}`);
       else exitCode = event.exitCode;

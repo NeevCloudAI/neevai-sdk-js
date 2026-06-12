@@ -40,7 +40,7 @@ Both paths run over a single shared `dispatch` (`src/http.ts`): bearer auth, per
 
 ### Adding or migrating a service
 
-Specs are moved from the backend services into this public repo **one at a time**:
+Specs are vendored into this public repo **one at a time**:
 
 1. Copy the service's `apis/openapi.yaml` to `specs/<service>.yaml`.
 2. Run `pnpm gen` → generates `src/generated/<service>.ts`.

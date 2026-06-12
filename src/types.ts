@@ -47,3 +47,15 @@ export type SandboxTemplateStatus = components["schemas"]["SandboxTemplateStatus
 
 // Paginated list payload returned by `templates.list`.
 export type SandboxTemplateListResponse = components["schemas"]["SandboxTemplateListResponse"];
+
+// A snapshot captured from a sandbox (filesystem, and memory once supported).
+export type SnapshotData = components["schemas"]["Snapshot"];
+
+// Lifecycle status of a snapshot ("Pending" | "Running" | "Ready" | "Failed").
+export type SnapshotStatus = components["schemas"]["SnapshotStatus"];
+
+// Request body accepted by `sandbox.snapshot` / `sandboxes.createSnapshot`.
+export type CreateSnapshotParams = components["schemas"]["CreateSnapshotRequest"];
+
+// Paginated list payload returned by `sandboxes.listSnapshots`.
+export type SnapshotListResponse = components["schemas"]["SnapshotListResponse"];
