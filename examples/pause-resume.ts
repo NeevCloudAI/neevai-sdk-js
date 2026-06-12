@@ -25,6 +25,25 @@ const neev = new Neev();
 const FILE = "note.txt";
 const CONTENT = "hello from before pause\n";
 
+// Retry a runtime call while the data-plane endpoint is still routing. After a
+// resume the control plane reports Ready before the gateway has a route to the new
+// pod, so the first calls can fail with a transient 502/503 ("no route to host").
+// Runtime calls are not auto-retried by the SDK, so we retry here briefly.
+async function whileEndpointSettles<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const transient = status === 502 || status === 503 || status === 504;
+      if (!transient || Date.now() > deadline) throw err;
+      log(`  [${label}] endpoint not routable yet (HTTP ${status}); retrying…`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+}
+
 // Inspect the workspace two ways and report whether FILE is present with the
 // expected content: an `ls -la` via exec (so the directory contents are printed
 // verbatim) and a direct file read (so a missing file shows up as a 404).
@@ -67,7 +86,7 @@ async function main(): Promise<void> {
 
     // Step 3: confirm the file is there BEFORE pausing (baseline).
     log("step 3: inspecting workspace before pause…");
-    const presentBefore = await inspect(sandbox, "before");
+    const presentBefore = await whileEndpointSettles("before", () => inspect(sandbox, "before"));
     log(`  baseline: file present = ${presentBefore}`);
 
     // Step 4: pause — stops billable runtime (scales replicas to zero).
@@ -82,9 +101,10 @@ async function main(): Promise<void> {
     await sandbox.waitUntilReady({ timeoutMs: 300_000 });
     log(`  ready again phase=${sandbox.phase} connectUrl=${sandbox.connectUrl}`);
 
-    // Step 6: inspect the workspace AFTER resume and report the verdict.
+    // Step 6: inspect the workspace AFTER resume and report the verdict. The
+    // endpoint may take a moment to route to the freshly resumed pod.
     log("step 6: inspecting workspace after resume…");
-    const survived = await inspect(sandbox, "after");
+    const survived = await whileEndpointSettles("after", () => inspect(sandbox, "after"));
     log(
       survived
         ? "RESULT: the file survived pause/resume ✅"

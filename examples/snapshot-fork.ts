@@ -40,6 +40,25 @@ async function waitForSnapshot(id: string, timeoutMs = 120_000): Promise<Snapsho
   }
 }
 
+// Retry a runtime call while the data-plane endpoint is still routing. A freshly
+// forked or restored sandbox reports Ready before the gateway has a route to its
+// pod, so the first calls can fail with a transient 502/503 ("no route to host").
+// Runtime calls are not auto-retried by the SDK, so we retry here briefly.
+async function whileEndpointSettles<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const transient = status === 502 || status === 503 || status === 504;
+      if (!transient || Date.now() > deadline) throw err;
+      log(`  [${label}] endpoint not routable yet (HTTP ${status}); retrying…`);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+}
+
 // Inspect a Ready sandbox two ways and report whether FILE survived: an `ls -la`
 // via exec (so the workspace contents are printed verbatim) and a direct file
 // read (so a missing file shows up as a 404 and a changed file as a content
@@ -102,7 +121,7 @@ async function main(): Promise<void> {
     forkLive = await neev.sandboxes.fork(source.id, `fork-live-${Date.now()}`);
     await forkLive.waitUntilReady();
     log(`  fork-live ${forkLive.id} ready — reading ${FILE}…`);
-    await checkFile(forkLive, "fork-live");
+    await whileEndpointSettles("fork-live", () => checkFile(forkLive as Sandbox, "fork-live"));
 
     // Step 4b: fork another sandbox FROM THE SNAPSHOT. Passing `from_snapshot`
     // restores the new sandbox from that snapshot instead of cold-starting from
@@ -115,7 +134,9 @@ async function main(): Promise<void> {
     });
     await forkSnap.waitUntilReady();
     log(`  fork-snapshot ${forkSnap.id} ready — reading ${FILE}…`);
-    await checkFile(forkSnap, "fork-snapshot");
+    await whileEndpointSettles("fork-snapshot", () =>
+      checkFile(forkSnap as Sandbox, "fork-snapshot"),
+    );
 
     // Step 5: restore the original sandbox in place from the snapshot, wait for
     // it to come back Ready, then check the file is restored.
@@ -123,7 +144,7 @@ async function main(): Promise<void> {
     await source.restore(snapshot.id);
     await source.waitUntilReady();
     log(`  restored phase=${source.phase} — reading ${FILE}…`);
-    await checkFile(source, "restore");
+    await whileEndpointSettles("restore", () => checkFile(source, "restore"));
   } finally {
     // Always clean up everything this example created.
     log("cleanup: deleting sandboxes and snapshot…");
