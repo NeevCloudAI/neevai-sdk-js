@@ -21,6 +21,5 @@ The SDK uses a **hybrid** model:
 - **Spec-less** endpoints use `ctx.raw.request<T>()` with hand-written types,
   over the same transport.
 
-Specs are migrated from the backend services into `specs/` one at a time. See
-[CONTRIBUTING → Architecture](../CONTRIBUTING.md#architecture-hybrid-autogen--hand-written-wrapper)
-for the full workflow.
+See [CONTRIBUTING → Architecture](../CONTRIBUTING.md#architecture-hybrid-autogen--hand-written-wrapper)
+for details.

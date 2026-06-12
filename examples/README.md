@@ -17,22 +17,27 @@ export NEEV_ORG_ID=...
 export NEEV_PROJECT_ID=...
 ```
 
-By default examples target the **production** API (`https://api.ai.neevcloud.com/agent`)
-and region `as-south-1`. To target another environment, also set:
+By default examples target the **production** API (`https://api.ai.neevcloud.com/agent`).
+The basic lifecycle examples pass only a `name` and use the platform's **default
+template and region**; the richer ones (`parallel-fanout`, `sandbox-metrics`, and
+the agent examples) pin a specific template they need. To run on another
+environment, set the base URL and pin a region:
 
 ```sh
 export NEEV_BASE_URL=https://api.dev.ai.neevcloud.com/agent
 export NEEV_REGION=as-dev-1
 ```
 
-> Re-run `pnpm build` whenever you change SDK source, so the examples pick it up.
+> `NEEV_REGION` is optional on production (the platform picks a default) but
+> should be set on dev. Re-run `pnpm build` whenever you change SDK source.
 
 ## Examples — no model needed (pure SDK)
 
 | File | What it shows | Run |
 |------|---------------|-----|
-| [`create-sandbox.ts`](./create-sandbox.ts) | Lifecycle: list templates → create → wait for Ready → metrics → pause → delete | `npx tsx examples/create-sandbox.ts` |
-| [`streaming-exec.ts`](./streaming-exec.ts) | `sandbox.execStream` — output streamed line-by-line as it is produced | `npx tsx examples/streaming-exec.ts` |
+| [`create-sandbox.ts`](./create-sandbox.ts) | Lifecycle: create → wait for Ready → metrics → pause → delete | `npx tsx examples/create-sandbox.ts` |
+| [`snapshot-fork-restore.ts`](./snapshot-fork-restore.ts) | Snapshot a sandbox → fork a new one from it → restore the original in place | `npx tsx examples/snapshot-fork-restore.ts` |
+| [`streaming-exec.ts`](./streaming-exec.ts) | `sandbox.exec(cmd, { stream: true })` — output streamed line-by-line as it is produced | `npx tsx examples/streaming-exec.ts` |
 | [`parallel-fanout.ts`](./parallel-fanout.ts) | Several isolated sandboxes run a map/reduce concurrently; reads `metrics()` | `npx tsx examples/parallel-fanout.ts` |
 | [`sandbox-metrics.ts`](./sandbox-metrics.ts) | `sandbox.metrics()` polled under CPU load | `npx tsx examples/sandbox-metrics.ts` |
 
@@ -71,7 +76,13 @@ example provisions a real sandbox, so the project needs available credits
 ```sh
 npx tsx examples/create-sandbox.ts
 ```
-→ `created … from sb-…` → `ready at https://….sandboxes.<region>…` → `metric series: …` → `paused …` → `deleted`.
+→ `created … (phase: Pending)` → `ready at https://….sandboxes.<region>…` → `metric series: …` → `paused …` → `deleted`.
+
+**1b. Snapshot, fork & restore**
+```sh
+npx tsx examples/snapshot-fork-restore.ts
+```
+→ `source … ready` → `snapshot … ready` → `forked … carries: captured-at-snapshot` → `restored …` → `cleaned up`.
 
 **2. Streaming exec**
 ```sh

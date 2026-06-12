@@ -7,8 +7,8 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 
 **Available today**
 
-- **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, and live metrics. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
-- **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is required when creating a sandbox.
+- **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, live metrics, plus snapshots, restore, and fork. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
+- **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is optional when creating a sandbox; omit it to use the platform's default template.
 
 **Coming next**
 
@@ -67,7 +67,7 @@ await sandbox.resume();
 await sandbox.delete();
 ```
 
-See [`examples/`](./examples) for runnable scripts.
+To run the examples from a clone (including against dev), see [`examples/README.md`](./examples/README.md) for the full setup and per-example commands.
 
 ## Usage
 
@@ -80,11 +80,19 @@ await neev.sandboxes.pause(id);
 await neev.sandboxes.resume(id);
 await neev.sandboxes.delete(id);
 const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
+
+// Snapshots, restore, and fork (see "Snapshots, fork & restore" below).
+const snap = await neev.sandboxes.createSnapshot(id, { name: "checkpoint" });
+const { items } = await neev.sandboxes.listSnapshots(id); // paginated
+// `snap` starts Pending — wait until it reaches Ready before restoring from it
+// (see "Snapshots, fork & restore" below for the poll loop).
+await neev.sandboxes.restore(id, snap.id);             // restore in place once snap is Ready
+const fork = await neev.sandboxes.fork(id, "my-fork"); // fork the current live state (no snapshot needed)
 ```
 
 ### Sandbox templates
 
-Create requires a `sandbox_template_id`. Pass a known id directly, or browse the catalogue to discover one:
+`sandbox_template_id` is optional — omit it to use the platform's default template, or pass a known id directly, or browse the catalogue to discover one:
 
 ```ts
 // Create directly from a known template id.
@@ -108,6 +116,10 @@ const sandbox = await neev.sandboxes.get(id);
 await sandbox.refresh();          // re-fetch latest state
 await sandbox.waitUntilReady();   // poll until phase === "Ready"
 await sandbox.pause();
+const snap = await sandbox.snapshot();      // capture this sandbox's state (starts Pending)
+const fork = await sandbox.fork("my-fork"); // branch the current state into a new sandbox
+// restore needs `snap` Ready first — poll getSnapshot (see "Snapshots, fork & restore" below).
+await sandbox.restore(snap.id);             // restore this sandbox in place once snap is Ready
 sandbox.data;                     // full raw API record
 ```
 
@@ -168,12 +180,14 @@ const entries = await sandbox.files.list(".", { recursive: true }); // → FileE
 const result = await sandbox.exec(["sh", "-c", "python3 main.py"]); // → { stdout, stderr, exitCode }
 ```
 
-`exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
+By default `exec` is buffered — it runs the command to completion and returns captured output; a non-zero `exitCode` is returned, not thrown.
 
-To consume output **as it is produced** (long-running commands, live logs), use `execStream` — an async generator that yields `stdout`/`stderr` text chunks the moment the daemon flushes them, then a terminal `exit` event:
+To consume output **as it is produced** (long-running commands, live logs), pass `{ stream: true }`. The same `exec` then returns an async iterable that yields `stdout`/`stderr` text chunks the moment the daemon flushes them, then a terminal `exit` event:
 
 ```ts
-for await (const event of sandbox.execStream(["sh", "-c", "for i in 1 2 3; do echo $i; sleep 1; done"])) {
+for await (const event of sandbox.exec(["sh", "-c", "for i in 1 2 3; do echo $i; sleep 1; done"], {
+  stream: true,
+})) {
   if (event.type === "stdout") process.stdout.write(event.data);
   else if (event.type === "stderr") process.stderr.write(event.data);
   else console.log("exit", event.exitCode); // non-zero is reported here, not thrown
@@ -181,6 +195,32 @@ for await (const event of sandbox.execStream(["sh", "-c", "for i in 1 2 3; do ec
 ```
 
 These calls are **not** retried automatically (a retried `write` could run twice) — handle retries yourself if needed.
+
+### Snapshots, fork & restore
+
+Capture a sandbox's state as a **snapshot**, then **restore** the same sandbox back to that snapshot. A snapshot is created `Pending` and must reach `Ready` before it can be restored — poll `getSnapshot` (or read `snapshot.status`). **Fork** is separate: it atomically snapshots a sandbox's *current* live state into a brand-new sandbox (it does not reuse an existing snapshot), and the source keeps running:
+
+```ts
+const sandbox = await neev.sandboxes.get(id);
+
+// Capture the sandbox's filesystem state.
+const pending = await sandbox.snapshot({ name: "checkpoint" });
+let snap = await neev.sandboxes.getSnapshot(pending.id);
+while (snap.status === "Pending" || snap.status === "Running") {
+  await new Promise((r) => setTimeout(r, 2000));
+  snap = await neev.sandboxes.getSnapshot(pending.id);
+}
+
+// Restore the original in place from the snapshot; fork branches the current
+// live state into a brand-new sandbox (it does not consume `snap`).
+await sandbox.restore(snap.id);             // → this sandbox, restored
+const fork = await sandbox.fork("my-fork"); // → a new Sandbox handle
+
+const { items } = await neev.sandboxes.listSnapshots(id); // paginated; pass { page, limit }
+await neev.sandboxes.deleteSnapshot(snap.id);
+```
+
+The full snapshot example is [`examples/snapshot-fork-restore.ts`](./examples/snapshot-fork-restore.ts).
 
 ## Documentation
 

@@ -1,13 +1,20 @@
 import type { Scope } from "./client.js";
 import { NeevError } from "./errors.js";
-import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
+import type {
+  ListSnapshotsParams,
+  MetricsQuery,
+  Sandboxes,
+  SnapshotPage,
+} from "./resources/sandboxes.js";
 import { SandboxFiles } from "./sandboxd.js";
 import type { ExecOptions, ExecResult, ExecStreamEvent, SandboxConnection } from "./sandboxd.js";
 import type {
+  CreateSnapshotParams,
   SandboxData,
   SandboxMetricsResponse,
   SandboxPhase,
   SandboxResources,
+  SnapshotData,
 } from "./types.js";
 
 // Options controlling how long `waitUntilReady` polls before giving up.
@@ -96,20 +103,44 @@ export class Sandbox {
     return this.filesProxy;
   }
 
-  // Runs a command in the sandbox and returns its buffered output. If the sandbox
-  // has no connect_url yet, waits until it is Ready first. A non-zero exit code is
-  // returned, not thrown.
-  async exec(command: string | string[], options: ExecOptions = {}): Promise<ExecResult> {
+  // Runs a command in the sandbox. By default it buffers and resolves to the full
+  // ExecResult. Pass `{ stream: true }` to instead get a live async-iterable of
+  // stdout/stderr chunks followed by a terminal exit event. Either way it waits
+  // for the sandbox to be Ready on first use, and a non-zero exit is reported
+  // (in the result or the exit event), never thrown.
+  exec(
+    command: string | string[],
+    options: ExecOptions & { stream: true },
+  ): AsyncGenerator<ExecStreamEvent>;
+  exec(command: string | string[], options?: ExecOptions): Promise<ExecResult>;
+  exec(
+    command: string | string[],
+    options: ExecOptions = {},
+  ): Promise<ExecResult> | AsyncGenerator<ExecStreamEvent> {
+    return options.stream ? this.streamExec(command, options) : this.bufferedExec(command, options);
+  }
+
+  /** @deprecated Use `exec(command, { stream: true })`. */
+  execStream(
+    command: string | string[],
+    options: ExecOptions = {},
+  ): AsyncGenerator<ExecStreamEvent> {
+    return this.streamExec(command, options);
+  }
+
+  // Buffered exec: waits for the connection, then returns the full result.
+  private async bufferedExec(
+    command: string | string[],
+    options: ExecOptions,
+  ): Promise<ExecResult> {
     const conn = await this.ensureConnection();
     return conn.exec(command, options);
   }
 
-  // Runs a command and yields its output as it arrives (stdout/stderr text chunks
-  // then a terminal exit event). Like `exec`, waits for the sandbox to be Ready on
-  // first use. A non-zero exit is reported via the exit event, not thrown.
-  async *execStream(
+  // Streaming exec: waits for the connection, then yields events as they arrive.
+  private async *streamExec(
     command: string | string[],
-    options: ExecOptions = {},
+    options: ExecOptions,
   ): AsyncGenerator<ExecStreamEvent> {
     const conn = await this.ensureConnection();
     yield* conn.execStream(command, options);
@@ -154,6 +185,33 @@ export class Sandbox {
   // Reads the live metric series for this sandbox.
   async metrics(params: MetricsQuery = {}): Promise<SandboxMetricsResponse> {
     return this.sandboxes.metrics(this.id, { ...params, ...this.scope });
+  }
+
+  // Captures a snapshot of this sandbox. The result starts Pending; poll the
+  // snapshot (via sandboxes.getSnapshot) until Ready before restoring or forking.
+  async snapshot(params: CreateSnapshotParams = {}): Promise<SnapshotData> {
+    return this.sandboxes.createSnapshot(this.id, params, this.scope);
+  }
+
+  // Lists the snapshots taken from this sandbox. Paginated — pass page/limit and
+  // read the returned page's metadata to page through every snapshot.
+  async snapshots(params: ListSnapshotsParams = {}): Promise<SnapshotPage> {
+    return this.sandboxes.listSnapshots(this.id, { ...params, ...this.scope });
+  }
+
+  // Restores this sandbox in place from one of its snapshots and updates the handle.
+  async restore(snapshotId: string): Promise<this> {
+    const next = await this.sandboxes.restore(this.id, snapshotId, this.scope);
+    this.state = next.data;
+    return this;
+  }
+
+  // Forks this sandbox into a new named sandbox seeded from its *current* live
+  // state (the server snapshots the current state atomically); this sandbox keeps
+  // running. It does not reuse an existing snapshot — use restore for that.
+  // Returns a handle to the new sandbox.
+  async fork(name: string): Promise<Sandbox> {
+    return this.sandboxes.fork(this.id, name, this.scope);
   }
 
   // Resolves the daemon connection for this sandbox, coalescing concurrent first

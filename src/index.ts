@@ -36,6 +36,7 @@ export type {
 
 export type {
   CreateSandboxParams,
+  CreateSnapshotParams,
   EnvVar,
   MetricSeries,
   SandboxData,
@@ -49,6 +50,9 @@ export type {
   SandboxTemplateCategory,
   SandboxTemplateListResponse,
   SandboxTemplateStatus,
+  SnapshotData,
+  SnapshotListResponse,
+  SnapshotStatus,
 } from "./types.js";
 
 export {

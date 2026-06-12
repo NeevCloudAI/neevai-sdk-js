@@ -413,6 +413,21 @@ describe("sandboxd", () => {
       expect(calls[1]?.url).toBe("https://sbx.sandboxes.example/v1/exec");
     });
 
+    it("exec with { stream: true } yields events instead of buffering", async () => {
+      const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
+        ndjson([
+          { type: "stdout", data: btoa("a") },
+          { type: "exit", exit_code: 0 },
+        ]),
+      ]);
+      const events = [];
+      for await (const ev of sandbox.exec("echo", { stream: true })) events.push(ev);
+      expect(events).toEqual([
+        { type: "stdout", data: "a" },
+        { type: "exit", exitCode: 0 },
+      ]);
+    });
+
     it("execStream decodes a multi-byte char split across frames", async () => {
       // "é" is 0xC3 0xA9; deliver each byte in its own stdout frame.
       const { sandbox } = await readySandbox("https://sbx.sandboxes.example", [
