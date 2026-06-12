@@ -157,6 +157,8 @@ describe("sandbox snapshots, restore, and fork", () => {
     ]);
     const snaps = await neev.sandboxes.listSnapshots("sb-1");
     expect(snaps).toHaveLength(2);
+    // The paged response's `items` array is unwrapped to a flat SnapshotData[].
+    expect(snaps.map((s) => s.id)).toEqual(["22222222-2222-2222-2222-222222222222", "snap-b"]);
     expect(calls[0]?.url).toContain("/sandboxes/sb-1/snapshots");
   });
 
@@ -170,12 +172,21 @@ describe("sandbox snapshots, restore, and fork", () => {
     expect(calls[0]?.url).toContain("/snapshots/snap-x");
     await neev.sandboxes.deleteSnapshot("snap-x");
     expect(calls[1]?.method).toBe("DELETE");
+    expect(calls[1]?.url).toContain("/snapshots/snap-x");
+  });
+
+  it("throws a typed error when a snapshot is not found", async () => {
+    const { neev } = client([json(404, { error: "not_found", details: "gone" })]);
+    const err = await neev.sandboxes.getSnapshot("missing").catch((e) => e);
+    expect(err).toBeInstanceOf(NotFoundError);
+    expect((err as NotFoundError).status).toBe(404);
   });
 
   it("restores a sandbox in place from a snapshot", async () => {
     const { neev, calls } = client([json(200, sandboxData({ phase: "Pending" }))]);
     const restored = await neev.sandboxes.restore("sb-1", "snap-x");
     expect(restored).toBeInstanceOf(Sandbox);
+    expect(restored.phase).toBe("Pending"); // handle hydrated from the response
     expect(calls[0]?.method).toBe("POST");
     expect(calls[0]?.url).toContain("/sandboxes/sb-1/restore");
     expect(calls[0]?.body).toEqual({ snapshot_id: "snap-x" });
@@ -191,20 +202,24 @@ describe("sandbox snapshots, restore, and fork", () => {
     expect(calls[0]?.body).toEqual({ name: "forked" });
   });
 
-  it("exposes snapshot/restore/fork on the Sandbox handle", async () => {
+  it("exposes snapshot/snapshots/restore/fork on the Sandbox handle", async () => {
     const { neev, calls } = client([
       json(200, sandboxData()), // get
       json(202, snapshotData()), // snapshot
+      json(200, { items: [snapshotData()], total: 1, page: 1, limit: 50 }), // snapshots (list)
       json(200, sandboxData({ phase: "Pending" })), // restore
       json(201, sandboxData({ name: "child" })), // fork
     ]);
     const sb = await neev.sandboxes.get("sb-1");
     await sb.snapshot();
+    const snaps = await sb.snapshots();
+    expect(snaps).toHaveLength(1);
     await sb.restore("snap-x");
     const child = await sb.fork("child");
     expect(child.name).toBe("child");
     expect(calls.map((c) => c.url.split("/").pop())).toEqual([
       "sb-1",
+      "snapshots",
       "snapshots",
       "restore",
       "fork",

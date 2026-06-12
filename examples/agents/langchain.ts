@@ -66,7 +66,7 @@ async function main(): Promise<void> {
       },
       // A successful run needs only a couple of steps (one tool call, then the
       // answer); the extra headroom tolerates a few retries while a freshly
-      // created sandbox.s hostname resolves. A low limit also makes a
+      // created sandbox's hostname resolves. A low limit also makes a
       // model that loops on tool calls fail fast with the diagnosis below,
       // rather than churning silently through many model calls first.
       { recursionLimit: 16 },

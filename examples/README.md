@@ -17,9 +17,11 @@ export NEEV_ORG_ID=...
 export NEEV_PROJECT_ID=...
 ```
 
-By default examples target the **production** API (`https://api.ai.neevcloud.com/agent`)
-and use the platform's **default region and template** (each `create` passes only a
-`name`). To run on another environment, set the base URL and pin a region:
+By default examples target the **production** API (`https://api.ai.neevcloud.com/agent`).
+The basic lifecycle examples pass only a `name` and use the platform's **default
+template and region**; the richer ones (`parallel-fanout`, `sandbox-metrics`, and
+the agent examples) pin a specific template they need. To run on another
+environment, set the base URL and pin a region:
 
 ```sh
 export NEEV_BASE_URL=https://api.dev.ai.neevcloud.com/agent
