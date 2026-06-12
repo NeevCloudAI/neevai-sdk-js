@@ -16,9 +16,6 @@ import { Neev } from "@neevcloud/sdk";
 
 const neev = new Neev();
 
-// Production region; override with NEEV_REGION for another environment.
-const REGION = process.env.NEEV_REGION ?? "as-south-1";
-
 const start = Date.now();
 // Logs with the milliseconds elapsed since start, so streaming is visible.
 function log(message: string): void {
@@ -27,10 +24,10 @@ function log(message: string): void {
 
 async function main(): Promise<void> {
   log("creating sandbox…");
+  // Platform defaults for template and region; set NEEV_REGION to pin a region.
   const sandbox = await neev.sandboxes.create({
     name: `stream-${Math.random().toString(36).slice(2, 8)}`,
-    sandbox_template_id: "sb-ubuntu-26-04-minimal",
-    region: REGION,
+    region: process.env.NEEV_REGION,
   });
 
   try {

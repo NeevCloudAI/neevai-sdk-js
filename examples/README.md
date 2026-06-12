@@ -18,20 +18,22 @@ export NEEV_PROJECT_ID=...
 ```
 
 By default examples target the **production** API (`https://api.ai.neevcloud.com/agent`)
-and region `as-south-1`. To target another environment, also set:
+and use the platform's **default region and template** (each `create` passes only a
+`name`). To run on another environment, set the base URL and pin a region:
 
 ```sh
 export NEEV_BASE_URL=https://api.dev.ai.neevcloud.com/agent
 export NEEV_REGION=as-dev-1
 ```
 
-> Re-run `pnpm build` whenever you change SDK source, so the examples pick it up.
+> `NEEV_REGION` is optional on production (the platform picks a default) but
+> should be set on dev. Re-run `pnpm build` whenever you change SDK source.
 
 ## Examples — no model needed (pure SDK)
 
 | File | What it shows | Run |
 |------|---------------|-----|
-| [`create-sandbox.ts`](./create-sandbox.ts) | Lifecycle: list templates → create → wait for Ready → metrics → pause → delete | `npx tsx examples/create-sandbox.ts` |
+| [`create-sandbox.ts`](./create-sandbox.ts) | Lifecycle: create → wait for Ready → metrics → pause → delete | `npx tsx examples/create-sandbox.ts` |
 | [`create-sandbox-with-ttl.ts`](./create-sandbox-with-ttl.ts) | Create with `lifecycle.ttl_seconds` so the sandbox auto-expires | `npx tsx examples/create-sandbox-with-ttl.ts` |
 | [`snapshot-fork-restore.ts`](./snapshot-fork-restore.ts) | Snapshot a sandbox → fork a new one from it → restore the original in place | `npx tsx examples/snapshot-fork-restore.ts` |
 | [`streaming-exec.ts`](./streaming-exec.ts) | `sandbox.exec(cmd, { stream: true })` — output streamed line-by-line as it is produced | `npx tsx examples/streaming-exec.ts` |
@@ -73,7 +75,7 @@ example provisions a real sandbox, so the project needs available credits
 ```sh
 npx tsx examples/create-sandbox.ts
 ```
-→ `created … from sb-…` → `ready at https://….sandboxes.<region>…` → `metric series: …` → `paused …` → `deleted`.
+→ `created … (phase: Pending)` → `ready at https://….sandboxes.<region>…` → `metric series: …` → `paused …` → `deleted`.
 
 **1b. Create with an auto-shutdown TTL**
 ```sh

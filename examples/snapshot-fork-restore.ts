@@ -3,18 +3,15 @@
  * restore the original in place from the same snapshot.
  *
  * Run with (targets the Neev production API by default; override with
- * NEEV_BASE_URL):
+ * NEEV_BASE_URL, and the region with NEEV_REGION):
  *   NEEV_API_KEY=... NEEV_ORG_ID=... NEEV_PROJECT_ID=... \
  *     npx tsx examples/snapshot-fork-restore.ts
  */
-import { Neev } from "@neev/sdk";
-import type { SnapshotData } from "@neev/sdk";
+import { Neev } from "@neevcloud/sdk";
+import type { SnapshotData } from "@neevcloud/sdk";
 
 // Construct the client from NEEV_* environment variables.
 const neev = new Neev();
-
-// Production region for sandbox provisioning.
-const REGION = "as-south-1";
 
 // Poll a snapshot until it reaches a terminal state. A snapshot is created
 // Pending and must be Ready before it can be restored or forked from.
@@ -31,15 +28,11 @@ async function waitForSnapshot(id: string, timeoutMs = 120_000): Promise<Snapsho
 }
 
 async function main(): Promise<void> {
-  const templates = await neev.templates.list();
-  const template = templates.items.find((t) => t.status === "active") ?? templates.items[0];
-  if (!template) throw new Error("no sandbox templates available");
-
-  // Provision a sandbox and lay down some state to capture.
+  // Template and region use the platform defaults; set NEEV_REGION to pin a
+  // region (e.g. on dev).
   const sandbox = await neev.sandboxes.create({
     name: "snapshot-source",
-    sandbox_template_id: template.id,
-    region: REGION,
+    region: process.env.NEEV_REGION,
   });
   await sandbox.waitUntilReady();
   await sandbox.files.write("state.txt", "captured-at-snapshot");

@@ -67,43 +67,7 @@ await sandbox.resume();
 await sandbox.delete();
 ```
 
-### Try it on dev (from a clone)
-
-The package isn't published yet, so run the examples from a clone — `import "@neevcloud/sdk"` resolves to the local build (Node self-referencing), no link step needed.
-
-```sh
-# 1. Install deps and build the SDK (examples import the built dist/).
-pnpm install
-pnpm build
-
-# 2. Point at the dev environment and your dev credentials.
-export NEEV_BASE_URL=https://api.dev.ai.neevcloud.com/agent
-export NEEV_REGION=as-dev-1
-export NEEV_API_KEY=...        # dev sandbox API key
-export NEEV_ORG_ID=...
-export NEEV_PROJECT_ID=...
-
-# 3. Run a pure-SDK example (no model needed).
-npx tsx examples/create-sandbox.ts          # create → ready → metrics → pause → delete
-npx tsx examples/create-sandbox-with-ttl.ts  # create with an auto-shutdown TTL
-npx tsx examples/snapshot-fork-restore.ts    # snapshot → fork → restore
-npx tsx examples/streaming-exec.ts           # exec(cmd, { stream: true }) live output
-```
-
-To run the **AI agent** examples, add an inference key and install that example's extra deps from the repo root (`examples/agents/` shares this package — no separate install dir), then run with `tsx`:
-
-```sh
-export NEEV_INFERENCE_API_KEY=...   # falls back to NEEV_API_KEY if the keys are the same
-
-# ai-interpreter needs no extra deps:
-npx tsx examples/agents/ai-interpreter.ts
-
-# the framework examples each need their own dev deps, e.g. LangChain:
-pnpm add -D @langchain/core @langchain/openai @langchain/langgraph zod
-npx tsx examples/agents/langchain.ts
-```
-
-Re-run `pnpm build` after changing SDK source. The full per-example matrix, expected output, and the other frameworks (Vercel AI, Genkit) are in [`examples/README.md`](./examples/README.md).
+To run the examples from a clone (including against dev), see [`examples/README.md`](./examples/README.md) for the full setup and per-example commands.
 
 ## Usage
 
