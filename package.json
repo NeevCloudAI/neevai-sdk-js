@@ -1,6 +1,6 @@
 {
   "name": "@neevcloud/sdk",
-  "version": "0.1.0",
+  "version": "0.5.0-beta",
   "description": "Official NeevCloud SDK for the Neev platform — Node, Bun, Deno & edge. First up: agent sandboxes.",
   "license": "Apache-2.0",
   "author": "NeevCloud",
@@ -12,7 +12,16 @@
   "bugs": {
     "url": "https://github.com/NeevCloudAI/neev-sdk-js/issues"
   },
-  "keywords": ["neev", "neevcloud", "sdk", "agent", "sandbox", "ai", "gpu", "gvisor"],
+  "keywords": [
+    "neev",
+    "neevcloud",
+    "sdk",
+    "agent",
+    "sandbox",
+    "ai",
+    "gpu",
+    "gvisor"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -30,7 +39,12 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=18"
   },
@@ -40,7 +54,10 @@
     "provenance": true
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild"
+    ]
   },
   "scripts": {
     "gen": "node scripts/gen-types.mjs",
