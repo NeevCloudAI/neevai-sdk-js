@@ -2,9 +2,11 @@
  * Snapshot & fork — does a workspace file survive each path?
  *
  * Flow: create a sandbox → write a file → take a snapshot → fork a new sandbox
- * from the live state and re-read the file there → restore the original from the
- * snapshot and re-read the file → report PASS/FAIL for each path. Every step logs
- * what it is doing (with elapsed time) so the flow is easy to follow.
+ * from the LIVE state → fork another from the SNAPSHOT → restore the original in
+ * place from the snapshot → re-read the file on each and report PASS/FAIL. A
+ * sandbox can be forked from either a live sandbox or a snapshot, so both paths
+ * are exercised. Every step logs what it is doing (with elapsed time) so the flow
+ * is easy to follow.
  *
  * Run (targets the Neev production API by default; override with NEEV_BASE_URL,
  * and pin a region with NEEV_REGION — e.g. on dev):
@@ -71,7 +73,8 @@ async function main(): Promise<void> {
   log(`  created id=${source.id} phase=${source.phase}`);
 
   // Forks are created lazily inside the try so cleanup can always reach them.
-  let fork: Sandbox | undefined;
+  let forkLive: Sandbox | undefined;
+  let forkSnap: Sandbox | undefined;
   let snapshot: SnapshotData | undefined;
 
   try {
@@ -92,18 +95,31 @@ async function main(): Promise<void> {
     snapshot = await waitForSnapshot(pending.id);
     log(`  snapshot ${snapshot.id} ready (${snapshot.size_bytes ?? "?"} bytes)`);
 
-    // Step 4: fork a brand-new sandbox from the source's *current* live state
-    // (fork snapshots the live state atomically; it does not consume the
-    // snapshot from step 3). Then check the file came across.
-    log("step 4: forking a new sandbox from the live state…");
-    fork = await neev.sandboxes.fork(source.id, "snapshot-fork");
-    await fork.waitUntilReady();
-    log(`  fork ${fork.id} ready — reading ${FILE}…`);
-    await checkFile(fork, "fork");
+    // Step 4a: fork a brand-new sandbox from the source's *current* live state.
+    // `fork` snapshots the live state atomically and seeds the new sandbox from
+    // it; the source keeps running. Then check the file came across.
+    log("step 4a: forking a new sandbox from the LIVE state…");
+    forkLive = await neev.sandboxes.fork(source.id, `fork-live-${Date.now()}`);
+    await forkLive.waitUntilReady();
+    log(`  fork-live ${forkLive.id} ready — reading ${FILE}…`);
+    await checkFile(forkLive, "fork-live");
+
+    // Step 4b: fork another sandbox FROM THE SNAPSHOT. Passing `from_snapshot`
+    // restores the new sandbox from that snapshot instead of cold-starting from
+    // the image; the region must match the snapshot's origin. Then check the file.
+    log("step 4b: forking a new sandbox from the SNAPSHOT…");
+    forkSnap = await neev.sandboxes.create({
+      name: `fork-snap-${Date.now()}`,
+      from_snapshot: snapshot.id,
+      region: process.env.NEEV_REGION,
+    });
+    await forkSnap.waitUntilReady();
+    log(`  fork-snapshot ${forkSnap.id} ready — reading ${FILE}…`);
+    await checkFile(forkSnap, "fork-snapshot");
 
     // Step 5: restore the original sandbox in place from the snapshot, wait for
     // it to come back Ready, then check the file is restored.
-    log("step 5: restoring the source from the snapshot…");
+    log("step 5: restoring the source in place from the snapshot…");
     await source.restore(snapshot.id);
     await source.waitUntilReady();
     log(`  restored phase=${source.phase} — reading ${FILE}…`);
@@ -113,7 +129,8 @@ async function main(): Promise<void> {
     log("cleanup: deleting sandboxes and snapshot…");
     await Promise.all([
       source.delete().catch(() => undefined),
-      fork?.delete().catch(() => undefined),
+      forkLive?.delete().catch(() => undefined),
+      forkSnap?.delete().catch(() => undefined),
       snapshot ? neev.sandboxes.deleteSnapshot(snapshot.id).catch(() => undefined) : undefined,
     ]);
     log("  cleaned up.");
