@@ -43,13 +43,19 @@ async function main(): Promise<void> {
   const snapshot = await waitForSnapshot(pending.id);
   console.log(`snapshot ${snapshot.id} ready (${snapshot.size_bytes ?? "?"} bytes)`);
 
-  // Fork a brand-new sandbox seeded from the snapshot.
+  // Fork a brand-new sandbox from the source's *current* live state. Fork
+  // snapshots the current state atomically — it does not consume the snapshot
+  // captured above (that snapshot is used by the restore below).
   const fork = await neev.sandboxes.fork(sandbox.id, "snapshot-fork");
   await fork.waitUntilReady();
   console.log(`forked ${fork.id} carries: ${(await fork.files.readText("state.txt")).trim()}`);
 
-  // Restore the original sandbox in place from the same snapshot.
+  // Restore the original sandbox in place from the snapshot. Restore is an async
+  // state transition, so wait for the sandbox to come back Ready before cleanup —
+  // otherwise the delete races the in-progress restore and we never confirm the
+  // restored sandbox is usable.
   await sandbox.restore(snapshot.id);
+  await sandbox.waitUntilReady();
   console.log(`restored ${sandbox.id} (phase: ${sandbox.phase})`);
 
   // Clean up everything created by this example.

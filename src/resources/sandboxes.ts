@@ -41,6 +41,21 @@ export interface SandboxPage {
   limit: number;
 }
 
+// Parameters for listing snapshots: pagination plus an optional scope override.
+export interface ListSnapshotsParams extends Scope {
+  page?: number;
+  limit?: number;
+}
+
+// A page of snapshots, preserving the paging metadata so callers can page
+// through all of a sandbox's snapshots.
+export interface SnapshotPage {
+  items: SnapshotData[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // The time-window fields of a metrics read; shared by the resource method and the
 // Sandbox handle. All optional — the server defaults to the last hour.
 export interface MetricsQuery {
@@ -164,13 +179,21 @@ export class Sandboxes {
     return unwrap<SnapshotData>(res);
   }
 
-  // Lists the snapshots taken from a sandbox.
-  async listSnapshots(id: string, scope?: Scope): Promise<SnapshotData[]> {
+  // Lists the snapshots taken from a sandbox. The endpoint is paginated, so the
+  // returned page carries `total`/`page`/`limit` and accepts `page`/`limit` —
+  // callers can page through every snapshot instead of silently getting only the
+  // first page.
+  async listSnapshots(id: string, params: ListSnapshotsParams = {}): Promise<SnapshotPage> {
+    const { page, limit, ...scope } = params;
     const { orgId, projectId } = this.ctx.resolveScope(scope);
     const res = await this.api.GET(SNAPSHOTS, {
-      params: { path: { org_id: orgId, project_id: projectId, sandbox_id: id } },
+      params: {
+        path: { org_id: orgId, project_id: projectId, sandbox_id: id },
+        query: { page, limit },
+      },
     });
-    return unwrap<SnapshotListResponse>(res).items;
+    const data = unwrap<SnapshotListResponse>(res);
+    return { items: data.items, total: data.total, page: data.page, limit: data.limit };
   }
 
   // Fetches a snapshot's metadata by id (project-scoped, not tied to its source sandbox).
@@ -202,8 +225,11 @@ export class Sandboxes {
     return new Sandbox(this, unwrap<SandboxData>(res), scope);
   }
 
-  // Forks a sandbox into a new sandbox seeded from the source's latest snapshot,
-  // returning a handle to the new sandbox.
+  // Forks a sandbox into a new named sandbox. The server atomically snapshots the
+  // source's *current* live state and seeds the new sandbox from it; the source
+  // keeps running. This always forks the current state — it does not reuse a
+  // previously created snapshot (use restore for a chosen snapshot). Returns a
+  // handle to the new sandbox.
   async fork(id: string, name: string, scope?: Scope): Promise<Sandbox> {
     const { orgId, projectId } = this.ctx.resolveScope(scope);
     const res = await this.api.POST(FORK, {

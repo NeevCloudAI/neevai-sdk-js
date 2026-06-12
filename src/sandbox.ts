@@ -1,6 +1,11 @@
 import type { Scope } from "./client.js";
 import { NeevError } from "./errors.js";
-import type { MetricsQuery, Sandboxes } from "./resources/sandboxes.js";
+import type {
+  ListSnapshotsParams,
+  MetricsQuery,
+  Sandboxes,
+  SnapshotPage,
+} from "./resources/sandboxes.js";
 import { SandboxFiles } from "./sandboxd.js";
 import type { ExecOptions, ExecResult, ExecStreamEvent, SandboxConnection } from "./sandboxd.js";
 import type {
@@ -188,9 +193,10 @@ export class Sandbox {
     return this.sandboxes.createSnapshot(this.id, params, this.scope);
   }
 
-  // Lists the snapshots taken from this sandbox.
-  async snapshots(): Promise<SnapshotData[]> {
-    return this.sandboxes.listSnapshots(this.id, this.scope);
+  // Lists the snapshots taken from this sandbox. Paginated — pass page/limit and
+  // read the returned page's metadata to page through every snapshot.
+  async snapshots(params: ListSnapshotsParams = {}): Promise<SnapshotPage> {
+    return this.sandboxes.listSnapshots(this.id, { ...params, ...this.scope });
   }
 
   // Restores this sandbox in place from one of its snapshots and updates the handle.
@@ -200,8 +206,10 @@ export class Sandbox {
     return this;
   }
 
-  // Forks this sandbox into a new sandbox seeded from its latest snapshot,
-  // returning a handle to the new sandbox.
+  // Forks this sandbox into a new named sandbox seeded from its *current* live
+  // state (the server snapshots the current state atomically); this sandbox keeps
+  // running. It does not reuse an existing snapshot — use restore for that.
+  // Returns a handle to the new sandbox.
   async fork(name: string): Promise<Sandbox> {
     return this.sandboxes.fork(this.id, name, this.scope);
   }

@@ -143,11 +143,14 @@ describe("sandbox snapshots, restore, and fork", () => {
         limit: 50,
       }),
     ]);
-    const snaps = await neev.sandboxes.listSnapshots("sb-1");
-    expect(snaps).toHaveLength(2);
-    // The paged response's `items` array is unwrapped to a flat SnapshotData[].
-    expect(snaps.map((s) => s.id)).toEqual(["22222222-2222-2222-2222-222222222222", "snap-b"]);
+    const page = await neev.sandboxes.listSnapshots("sb-1", { page: 2, limit: 10 });
+    // The paged response preserves total/page/limit so callers can page through all.
+    expect(page.items).toHaveLength(2);
+    expect(page.total).toBe(2);
+    expect(page.items.map((s) => s.id)).toEqual(["22222222-2222-2222-2222-222222222222", "snap-b"]);
     expect(calls[0]?.url).toContain("/sandboxes/sb-1/snapshots");
+    expect(calls[0]?.url).toContain("page=2");
+    expect(calls[0]?.url).toContain("limit=10");
   });
 
   it("gets and deletes a snapshot by id", async () => {
@@ -201,7 +204,7 @@ describe("sandbox snapshots, restore, and fork", () => {
     const sb = await neev.sandboxes.get("sb-1");
     await sb.snapshot();
     const snaps = await sb.snapshots();
-    expect(snaps).toHaveLength(1);
+    expect(snaps.items).toHaveLength(1);
     await sb.restore("snap-x");
     const child = await sb.fork("child");
     expect(child.name).toBe("child");

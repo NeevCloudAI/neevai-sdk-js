@@ -8,7 +8,7 @@ One package, one auth model, one client — adopt new capabilities as they ship.
 **Available today**
 
 - **`neev.sandboxes`** — full agent-sandbox lifecycle: create, list, get, pause, resume, delete, live metrics, plus snapshots, restore, and fork. Sandboxes are gVisor-isolated (`runsc`) compute environments for AI agents.
-- **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is required when creating a sandbox.
+- **`neev.templates`** — the platform sandbox-template catalogue (list, get). A template id (e.g. `sb-ubuntu-26-04-minimal`) is optional when creating a sandbox; omit it to use the platform's default template.
 
 **Coming next**
 
@@ -83,14 +83,16 @@ const metrics = await neev.sandboxes.metrics(id, { step: "60s" });
 
 // Snapshots, restore, and fork (see "Snapshots, fork & restore" below).
 const snap = await neev.sandboxes.createSnapshot(id, { name: "checkpoint" });
-await neev.sandboxes.listSnapshots(id);
-await neev.sandboxes.restore(id, snap.id);          // restore in place
-const fork = await neev.sandboxes.fork(id, "my-fork"); // new sandbox from a snapshot
+const { items } = await neev.sandboxes.listSnapshots(id); // paginated
+// `snap` starts Pending — wait until it reaches Ready before restoring from it
+// (see "Snapshots, fork & restore" below for the poll loop).
+await neev.sandboxes.restore(id, snap.id);             // restore in place once snap is Ready
+const fork = await neev.sandboxes.fork(id, "my-fork"); // fork the current live state (no snapshot needed)
 ```
 
 ### Sandbox templates
 
-Create requires a `sandbox_template_id`. Pass a known id directly, or browse the catalogue to discover one:
+`sandbox_template_id` is optional — omit it to use the platform's default template, or pass a known id directly, or browse the catalogue to discover one:
 
 ```ts
 // Create directly from a known template id.
@@ -114,9 +116,10 @@ const sandbox = await neev.sandboxes.get(id);
 await sandbox.refresh();          // re-fetch latest state
 await sandbox.waitUntilReady();   // poll until phase === "Ready"
 await sandbox.pause();
-const snap = await sandbox.snapshot(); // capture this sandbox's state
-await sandbox.restore(snap.id);   // restore this sandbox in place
-const fork = await sandbox.fork("my-fork"); // branch into a new sandbox
+const snap = await sandbox.snapshot();      // capture this sandbox's state (starts Pending)
+const fork = await sandbox.fork("my-fork"); // branch the current state into a new sandbox
+// restore needs `snap` Ready first — poll getSnapshot (see "Snapshots, fork & restore" below).
+await sandbox.restore(snap.id);             // restore this sandbox in place once snap is Ready
 sandbox.data;                     // full raw API record
 ```
 
@@ -195,7 +198,7 @@ These calls are **not** retried automatically (a retried `write` could run twice
 
 ### Snapshots, fork & restore
 
-Capture a sandbox's state as a **snapshot**, then **restore** the same sandbox to it or **fork** a brand-new sandbox seeded from it. A snapshot is created `Pending` and must reach `Ready` before it can be restored or forked — poll `getSnapshot` (or read `snapshot.status`):
+Capture a sandbox's state as a **snapshot**, then **restore** the same sandbox back to that snapshot. A snapshot is created `Pending` and must reach `Ready` before it can be restored — poll `getSnapshot` (or read `snapshot.status`). **Fork** is separate: it atomically snapshots a sandbox's *current* live state into a brand-new sandbox (it does not reuse an existing snapshot), and the source keeps running:
 
 ```ts
 const sandbox = await neev.sandboxes.get(id);
@@ -208,11 +211,12 @@ while (snap.status === "Pending" || snap.status === "Running") {
   snap = await neev.sandboxes.getSnapshot(pending.id);
 }
 
-// Fork a new sandbox from the snapshot, or restore the original in place.
-const fork = await sandbox.fork("my-fork"); // → a new Sandbox handle
+// Restore the original in place from the snapshot; fork branches the current
+// live state into a brand-new sandbox (it does not consume `snap`).
 await sandbox.restore(snap.id);             // → this sandbox, restored
+const fork = await sandbox.fork("my-fork"); // → a new Sandbox handle
 
-await neev.sandboxes.listSnapshots(id);     // enumerate a sandbox's snapshots
+const { items } = await neev.sandboxes.listSnapshots(id); // paginated; pass { page, limit }
 await neev.sandboxes.deleteSnapshot(snap.id);
 ```
 
