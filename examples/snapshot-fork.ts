@@ -59,6 +59,21 @@ async function whileEndpointSettles<T>(label: string, fn: () => Promise<T>): Pro
   }
 }
 
+// Wait for an in-place restore to actually recreate the pod before treating the
+// sandbox as restored. Restore is suspend → run-with-restore, so the sandbox can
+// briefly still report the pre-restore Ready; wait for it to leave Ready (the
+// recreation has started) so the subsequent waitUntilReady targets the restored
+// pod — not the old one, and not a pod whose workspace has not been re-seeded yet.
+async function waitForRestart(sandbox: Sandbox, timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    await sandbox.refresh();
+    if (sandbox.phase !== "Ready") return;
+    if (Date.now() > deadline) return; // never observed leaving Ready; proceed anyway
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 // Inspect a Ready sandbox two ways and report whether FILE survived: an `ls -la`
 // via exec (so the workspace contents are printed verbatim) and a direct file
 // read (so a missing file shows up as a 404 and a changed file as a content
@@ -138,11 +153,14 @@ async function main(): Promise<void> {
       checkFile(forkSnap as Sandbox, "fork-snapshot"),
     );
 
-    // Step 5: restore the original sandbox in place from the snapshot, wait for
-    // it to come back Ready, then check the file is restored.
+    // Step 5: restore the original sandbox in place from the snapshot. Restore is
+    // asynchronous (suspend → run-with-restore), so wait for the pod to recreate
+    // before waiting for the restored pod to become Ready, then check the file.
     log("step 5: restoring the source in place from the snapshot…");
     await source.restore(snapshot.id);
-    await source.waitUntilReady();
+    log("  restore issued — waiting for the pod to recreate, then become Ready…");
+    await waitForRestart(source);
+    await source.waitUntilReady({ timeoutMs: 300_000 });
     log(`  restored phase=${source.phase} — reading ${FILE}…`);
     await whileEndpointSettles("restore", () => checkFile(source, "restore"));
   } finally {
