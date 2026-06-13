@@ -1,5 +1,5 @@
 # SDK CI — mirrors the conventions in the backend's .github/workflows:
-#   - self-hosted neevai-runner-dev
+#   - GitHub-hosted ubuntu-latest runner
 #   - actions/checkout@v4
 #   - runs on every PR to main + every push to main, plus manual dispatch
 #   - concurrency group per ref with cancel-in-progress
@@ -22,7 +22,7 @@ concurrency:
 jobs:
   build_and_test:
     name: Build and Test (node ${{ matrix.node }})
-    runs-on: neevai-runner-dev
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +46,7 @@ jobs:
 
   bun_smoke:
     name: Smoke (bun)
-    runs-on: neevai-runner-dev
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
