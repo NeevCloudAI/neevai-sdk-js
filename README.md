@@ -224,6 +224,12 @@ The full snapshot example is [`examples/snapshot-fork-restore.ts`](./examples/sn
 
 ## Documentation
 
+SDK guides and reference live in [`docs/`](./docs):
+
+- [Getting started](./docs/getting-started.md) — install, credentials, first sandbox
+- [API reference](./docs/api-reference.md) — grouped API lists + snippets
+- [API inventory](./docs/api-inventory.md) — exhaustive signatures, types, errors
+
 Full platform documentation: <https://docs.neevcloud.com>.
 
 ## Contributing
