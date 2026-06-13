@@ -44,6 +44,23 @@ async function whileEndpointSettles<T>(label: string, fn: () => Promise<T>): Pro
   }
 }
 
+// Poll the sandbox until it reaches the given phase (or times out). Used to wait
+// out the asynchronous pause — which returns while still "Pausing" — before
+// resuming, so the settling pause does not clobber the resume.
+async function waitForPhase(sandbox: Sandbox, phase: string, timeoutMs = 120_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    await sandbox.refresh();
+    if (sandbox.phase === phase) return;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `sandbox did not reach ${phase} within ${timeoutMs}ms (phase=${sandbox.phase})`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
 // Inspect the workspace two ways and report whether FILE is present with the
 // expected content: an `ls -la` via exec (so the directory contents are printed
 // verbatim) and a direct file read (so a missing file shows up as a 404).
@@ -89,9 +106,15 @@ async function main(): Promise<void> {
     const presentBefore = await whileEndpointSettles("before", () => inspect(sandbox, "before"));
     log(`  baseline: file present = ${presentBefore}`);
 
-    // Step 4: pause — stops billable runtime (scales replicas to zero).
+    // Step 4: pause — stops billable runtime (scales replicas to zero). Pausing is
+    // asynchronous: the call returns immediately with phase "Pausing" while the
+    // workspace is snapshotted and the pod scaled down in the background. Wait until
+    // it has fully settled to "Paused" before resuming, otherwise the in-flight
+    // pause would clobber the resume and the sandbox would bounce back to Paused.
     log("step 4: pausing…");
     await sandbox.pause();
+    log(`  pause issued phase=${sandbox.phase} — waiting until Paused…`);
+    await waitForPhase(sandbox, "Paused");
     log(`  paused phase=${sandbox.phase} replicas=${sandbox.replicas}`);
 
     // Step 5: resume / restart — scales back to one replica; wait until Ready.
