@@ -43,6 +43,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm build
+      
 
   bun_smoke:
     name: Smoke (bun)
